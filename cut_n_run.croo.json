@@ -1,17 +1,17 @@
 {
-  "atac.jsd": {
+  "cut_n_run.jsd": {
     "plot": {
       "path": "qc/${basename}",
       "table": "QC and logs/Jensen-Shannon distance plot"
     }
   },
-  "atac.frac_mito": {
+  "cut_n_run.frac_mito": {
     "frac_mito_qc": {
       "path": "qc/${basename}",
       "table": "QC and logs/Fraction of mitochondrial reads in raw BAM"
     }
   },
-  "atac.bowtie2": {
+  "cut_n_run.bowtie2": {
     "bam": {
       "path": "align/rep${i+1}/${basename}",
       "table": "Alignment/Replicate ${i+1}/Raw BAM from bowtie2"
@@ -25,7 +25,7 @@
       "table": "QC and logs/Replicate ${i+1}/Read length"
     }
   },
-  "atac.align": {
+  "cut_n_run.align": {
     "bam": {
       "path": "align/rep${i+1}/${basename}",
       "table": "Alignment/Replicate ${i+1}/Raw BAM from aligner"
@@ -43,7 +43,7 @@
       "table": "QC and logs/Replicate ${i+1}/Read length"
     }
   },
-  "atac.filter": {
+  "cut_n_run.filter": {
     "nodup_bam": {
       "path": "align/rep${i+1}/${basename}",
       "table": "Alignment/Replicate ${i+1}/Filtered BAM"
@@ -69,13 +69,13 @@
       "table": "QC and logs/Replicate ${i+1}/Mito dup log for filtered BAM"
     }
   },
-  "atac.bam2ta": {
+  "cut_n_run.bam2ta": {
     "ta": {
       "path": "align/rep${i+1}/${basename}",
       "table": "Alignment/Replicate ${i+1}/TAG-ALIGN"
     }
   },
-  "atac.spr": {
+  "cut_n_run.spr": {
     "ta_pr1": {
       "path": "align/rep${i+1}/pseudorep1/${basename}",
       "table": "Alignment/Replicate ${i+1}/Pseudoreplicate 1/TAG-ALIGN"
@@ -85,25 +85,25 @@
       "table": "Alignment/Replicate ${i+1}/Pseudoreplicate 2/TAG-ALIGN"
     }
   },
-  "atac.pool_ta": {
+  "cut_n_run.pool_ta": {
     "ta_pooled": {
       "path": "align/pooled-rep/${basename}",
       "table": "Alignment/Pooled replicate/TAG-ALIGN"
     }
   },
-  "atac.pool_ta_pr1": {
+  "cut_n_run.pool_ta_pr1": {
     "ta_pooled": {
       "path": "align/pooled-rep/pseudorep1/${basename}",
       "table": "Alignment/Pooled replicate/Pseudoreplicate 1/TAG-ALIGN"
     }
   },
-  "atac.pool_ta_pr2": {
+  "cut_n_run.pool_ta_pr2": {
     "ta_pooled": {
       "path": "align/pooled-rep/pseudorep2/${basename}",
       "table": "Alignment/Pooled replicate/Pseudoreplicate 2/TAG-ALIGN"
     }
   },
-  "atac.xcor": {
+  "cut_n_run.xcor": {
     "plot_png": {
       "path": "qc/rep${i+1}/${basename}",
       "table": "QC and logs/Replicate ${i+1}/Cross-correlation Plot"
@@ -117,7 +117,7 @@
       "table": "QC and logs/Replicate ${i+1}/Estimated fragment length"
     }
   },
-  "atac.macs2": {
+  "cut_n_run.macs2": {
     "npeak": {
       "path": "peak/rep${i+1}/${basename}",
       "table": "Peak/Replicate ${i+1}/Raw MACS2 narrowpeak"
@@ -139,7 +139,7 @@
       "table": "QC and logs/Replicate ${i+1}/Fraction of MACS2 peaks in reads"
     }
   },
-  "atac.macs2_pr1": {
+  "cut_n_run.macs2_pr1": {
     "npeak": {
       "path": "peak/rep${i+1}/pseudorep1/${basename}",
       "table": "Peak/Replicate ${i+1}/Pseudoreplicate 1/Raw MACS2 narrowpeak"
@@ -161,7 +161,7 @@
       "table": "QC and logs/Replicate ${i+1}/Pseudoreplicate 1/Fraction of MACS2 peaks in reads"
     }
   },
-  "atac.macs2_pr2": {
+  "cut_n_run.macs2_pr2": {
     "npeak": {
       "path": "peak/rep${i+1}/pseudorep2/${basename}",
       "table": "Peak/Replicate ${i+1}/Pseudoreplicate 2/Raw MACS2 narrowpeak"
@@ -183,7 +183,7 @@
       "table": "QC and logs/Replicate ${i+1}/Pseudoreplicate 2/Fraction of MACS2 peaks in reads"
     }
   },
-  "atac.macs2_pooled": {
+  "cut_n_run.macs2_pooled": {
     "npeak": {
       "path": "peak/pooled-rep/${basename}",
       "table": "Peak/Pooled replicate/Raw MACS2 narrowpeak"
@@ -205,7 +205,7 @@
       "table": "QC and logs/Pooled replicate/Fraction of MACS2 peaks in reads"
     }
   },
-  "atac.macs2_ppr1": {
+  "cut_n_run.macs2_ppr1": {
     "npeak": {
       "path": "peak/pooled-rep/pseudorep1/${basename}",
       "table": "Peak/Pooled replicate/Pseudoreplicate 1/Raw MACS2 narrowpeak"
@@ -227,7 +227,7 @@
       "table": "QC and logs/Pooled replicate/Pseudoreplicate 1/Fraction of MACS2 peaks in reads"
     }
   },
-  "atac.macs2_ppr2": {
+  "cut_n_run.macs2_ppr2": {
     "npeak": {
       "path": "peak/pooled-rep/pseudorep2/${basename}",
       "table": "Peak/Pooled replicate/Pseudoreplicate 2/Raw MACS2 narrowpeak"
@@ -249,7 +249,7 @@
       "table": "QC and logs/Pooled replicate/Pseudoreplicate 2/Fraction of MACS2 peaks in reads"
     }
   },
-  "atac.call_peak": {
+  "cut_n_run.call_peak": {
     "npeak": {
       "path": "peak/rep${i+1}/${basename}",
       "table": "Peak/Replicate ${i+1}/Raw narrowpeak"
@@ -271,7 +271,7 @@
       "table": "QC and logs/Replicate ${i+1}/Fraction of peaks in reads"
     }
   },
-  "atac.call_peak_pr1": {
+  "cut_n_run.call_peak_pr1": {
     "npeak": {
       "path": "peak/rep${i+1}/pseudorep1/${basename}",
       "table": "Peak/Replicate ${i+1}/Pseudoreplicate 1/Raw narrowpeak"
@@ -293,7 +293,7 @@
       "table": "QC and logs/Replicate ${i+1}/Pseudoreplicate 1/Fraction of peaks in reads"
     }
   },
-  "atac.call_peak_pr2": {
+  "cut_n_run.call_peak_pr2": {
     "npeak": {
       "path": "peak/rep${i+1}/pseudorep2/${basename}",
       "table": "Peak/Replicate ${i+1}/Pseudoreplicate 2/Raw narrowpeak"
@@ -315,7 +315,7 @@
       "table": "QC and logs/Replicate ${i+1}/Pseudoreplicate 2/Fraction of peaks in reads"
     }
   },
-  "atac.call_peak_pooled": {
+  "cut_n_run.call_peak_pooled": {
     "npeak": {
       "path": "peak/pooled-rep/${basename}",
       "table": "Peak/Pooled replicate/Raw narrowpeak"
@@ -337,7 +337,7 @@
       "table": "QC and logs/Pooled replicate/Fraction of peaks in reads"
     }
   },
-  "atac.call_peak_ppr1": {
+  "cut_n_run.call_peak_ppr1": {
     "npeak": {
       "path": "peak/pooled-rep/pseudorep1/${basename}",
       "table": "Peak/Pooled replicate/Pseudoreplicate 1/Raw narrowpeak"
@@ -359,7 +359,7 @@
       "table": "QC and logs/Pooled replicate/Pseudoreplicate 1/Fraction of peaks in reads"
     }
   },
-  "atac.call_peak_ppr2": {
+  "cut_n_run.call_peak_ppr2": {
     "npeak": {
       "path": "peak/pooled-rep/pseudorep2/${basename}",
       "table": "Peak/Pooled replicate/Pseudoreplicate 2/Raw narrowpeak"
@@ -381,7 +381,7 @@
       "table": "QC and logs/Pooled replicate/Pseudoreplicate 2/Fraction of peaks in reads"
     }
   },
-  "atac.macs2_signal_track": {
+  "cut_n_run.macs2_signal_track": {
     "pval_bw": {
       "path": "signal/rep${i+1}/${basename}",
       "table": "Signal/Replicate ${i+1}/MACS2 signal track (p-val)"
@@ -391,7 +391,7 @@
       "table": "Signal/Replicate ${i+1}/MACS2 signal track (fold-enrichment)"
     }
   },
-  "atac.macs2_signal_track_pooled": {
+  "cut_n_run.macs2_signal_track_pooled": {
     "pval_bw": {
       "path": "signal/pooled-rep/${basename}",
       "table": "Signal/Pooled replicate/MACS2 signal track (p-val)"
@@ -401,7 +401,7 @@
       "table": "Signal/Pooled replicate/MACS2 signal track (fold-enrichment)"
     }
   },
-  "atac.count_signal_track": {
+  "cut_n_run.count_signal_track": {
     "pos_bw": {
       "path": "signal/rep${i+1}/${basename}",
       "table": "Signal/Replicate ${i+1}/Count signal track (positive)"
@@ -411,7 +411,7 @@
       "table": "Signal/Replicate ${i+1}/Count signal track (negative)"
     }
   },
-  "atac.count_signal_track_pooled": {
+  "cut_n_run.count_signal_track_pooled": {
     "pos_bw": {
       "path": "signal/pooled-rep/${basename}",
       "table": "Signal/Pooled replicate/Count signal track (positive)"
@@ -421,7 +421,7 @@
       "table": "Signal/Pooled replicate/Count signal track (negative)"
     }
   },
-  "atac.idr": {
+  "cut_n_run.idr": {
     "bfilt_idr_peak": {
       "path": "peak/${basename.split('.')[0].replace('_vs_','_').replace('_','_vs_').replace('-','_vs_')}/${basename}",
       "table": "Peak/${basename.split('.')[0].replace('_vs_','_').replace('_',' vs. ').replace('-',' vs. ').capitalize()}/Blacklist-filtered IDR peak"
@@ -451,7 +451,7 @@
       "table": "QC and logs/${basename.split('.')[0].replace('_',' vs. ').replace('-',' vs. ').capitalize()}/Fraction of IDR peaks in reads"
     }
   },
-  "atac.idr_ppr": {
+  "cut_n_run.idr_ppr": {
     "bfilt_idr_peak": {
       "path": "peak/pooled-pseudorep1_vs_2/${basename}",
       "table": "Peak/Pooled pseudoreplicate 1 vs. 2/Blacklist-filtered IDR peak"
@@ -481,7 +481,7 @@
       "table": "QC and logs/Pooled pseudoreplicate 1 vs. 2/Fraction of IDR peaks in reads"
     }
   },
-  "atac.idr_pr": {
+  "cut_n_run.idr_pr": {
     "bfilt_idr_peak": {
       "path": "peak/rep${i+1}-pseudorep1_vs_2/${basename}",
       "table": "Peak/Replicate ${i+1}/Pseudorep 1 vs. pseudorep 2/Blacklist-filtered IDR peak"
@@ -511,7 +511,7 @@
       "table": "QC and logs/Replicate ${i+1}/Pseudorep 1 vs. pseudorep 2/Fraction of IDR peaks in reads"
     }
   },
-  "atac.overlap": {
+  "cut_n_run.overlap": {
     "bfilt_overlap_peak": {
       "path": "peak/${basename.split('.')[0].replace('_vs_','_').replace('_','_vs_').replace('-','_vs_')}/${basename}",
       "table": "Peak/${basename.split('.')[0].replace('_vs_','_').replace('_',' vs. ').replace('-',' vs. ').capitalize()}/Blacklist-filtered overlap peak"
@@ -529,7 +529,7 @@
       "table": "QC and logs/${basename.split('.')[0].replace('_',' vs. ').replace('-',' vs. ').capitalize()}/Fraction of overlap peaks in reads"
     }
   },
-  "atac.overlap_ppr": {
+  "cut_n_run.overlap_ppr": {
     "bfilt_overlap_peak": {
       "path": "peak/pooled-pseudorep1_vs_2/${basename}",
       "table": "Peak/Pooled pseudoreplicate 1 vs. 2/Blacklist-filtered overlap peak"
@@ -547,7 +547,7 @@
       "table": "QC and logs/Pooled pseudoreplicate 1 vs. 2/Fraction of overlap peaks in reads"
     }
   },
-  "atac.overlap_pr": {
+  "cut_n_run.overlap_pr": {
     "bfilt_overlap_peak": {
       "path": "peak/rep${i+1}-pseudorep1_vs_2/${basename}",
       "table": "Peak/Replicate ${i+1}/Pseudorep 1 vs. pseudorep 2/Blacklist-filtered overlap peak"
@@ -565,7 +565,7 @@
       "table": "QC and logs/Replicate ${i+1}/Pseudorep 1 vs. pseudorep 2/Fraction of overlap peaks in reads"
     }
   },
-  "atac.reproducibility_idr": {
+  "cut_n_run.reproducibility_idr": {
     "optimal_peak": {
       "path": "peak/idr_reproducibility/${basename}",
       "table": "Peak/IDR reproducibility/Optimal peak"
@@ -595,7 +595,7 @@
       "table": "QC and logs/Reproducibility QC for overlap peaks"
     }
   },
-  "atac.reproducibility_overlap": {
+  "cut_n_run.reproducibility_overlap": {
     "optimal_peak": {
       "path": "peak/overlap_reproducibility/${basename}",
       "table": "Peak/Overlap reproducibility/Optimal peak"
@@ -625,7 +625,7 @@
       "table": "QC and logs/Reproducibility QC for IDR peaks"
     }
   },
-  "atac.ataqc": {
+  "cut_n_run.ataqc": {
     "html": {
       "path": "qc/rep${i+1}/${basename}",
       "table": "QC and logs/Replicate ${i+1}/ATAqC summary report"
@@ -635,7 +635,7 @@
       "table": "QC and logs/Replicate ${i+1}/ATAqC summary txt"
     }
   },
-  "atac.qc_report": {
+  "cut_n_run.qc_report": {
     "report": {
       "path": "qc/${basename}",
       "table": "QC and logs/Final HTML report"

@@ -2,7 +2,7 @@
 
 ## Command line for version change
 ```bash
-PREV_VER=dev-v1.5.0
+PREV_VER=dev-v0.1.0
 NEW_VER=dev-v0.1.0
 for f in $(grep -rl ${PREV_VER} --include=*.{wdl,md,sh})
 do
@@ -24,7 +24,7 @@ Run the following command line locally to build out DX workflows for this pipeli
 
 ```bash
 # version
-VER=dev-v1.5.0
+VER=dev-v0.1.0
 
 # general
 java -jar ~/dxWDL-0.79.1.jar compile cut_n_run.wdl -project "ENCODE Uniform Processing Pipelines" -extras dev/workflow_opts/docker.json -f -folder /Cut-n-run/workflows/$VER/general -defaults dev/examples/dx/template_general.json

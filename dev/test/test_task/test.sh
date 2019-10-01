@@ -12,7 +12,7 @@ INPUT=$2
 if [ $# -gt 2 ]; then
   DOCKER_IMAGE=$3
 else
-  DOCKER_IMAGE=quay.io/encode-dcc/cut-n-run-pipeline:test-dev-v1.5.0
+  DOCKER_IMAGE=quay.io/encode-dcc/cut-n-run-pipeline:test-dev-v0.1.0
 fi
 if [ $# -gt 3 ]; then
   NUM_TASK=$4
