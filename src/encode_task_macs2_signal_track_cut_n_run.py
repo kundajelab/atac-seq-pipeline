@@ -13,8 +13,8 @@ from encode_lib_common import (
 def parse_arguments():
     parser = argparse.ArgumentParser(prog='ENCODE DCC MACS2 signal track',
                                      description='')
-    parser.add_argument('ta', type=str,
-                        help='Path for TAGALIGN file.')
+    parser.add_argument('tas', type=str, nargs='+',
+                        help='Path for TAGALIGN file (first) and control TAGALIGN file (second; optional).')
     parser.add_argument('--chrsz', type=str,
                         help='2-col chromosome sizes file.')
     parser.add_argument('--gensz', type=str,
@@ -32,15 +32,23 @@ def parse_arguments():
                                  'CRITICAL'],
                         help='Log level')
     args = parser.parse_args()
-
+    if len(args.tas) == 1:
+        args.tas.append('')
     log.setLevel(args.log_level)
     log.info(sys.argv)
     return args
 
 
-def macs2_signal_track(ta, chrsz, gensz, pval_thresh, smooth_win, out_dir):
-    prefix = os.path.join(out_dir,
-                          os.path.basename(strip_ext_ta(ta)))
+def macs2_signal_track(ta, ctl_ta, chrsz, gensz, pval_thresh, smooth_win, out_dir):
+    basename_ta = os.path.basename(strip_ext_ta(ta))
+    if ctl_ta:
+        basename_ctl_ta = os.path.basename(strip_ext_ta(ctl_ta))
+        basename_prefix = '{}_x_{}'.format(basename_ta, basename_ctl_ta)
+        if len(basename_prefix) > 200:  # UNIX cannot have len(filename) > 255
+            basename_prefix = '{}_x_control'.format(basename_ta)
+    else:
+        basename_prefix = basename_ta
+    prefix = os.path.join(out_dir, basename_prefix)
     fc_bigwig = '{}.fc.signal.bigwig'.format(prefix)
     pval_bigwig = '{}.pval.signal.bigwig'.format(prefix)
     # temporary files
@@ -53,12 +61,13 @@ def macs2_signal_track(ta, chrsz, gensz, pval_thresh, smooth_win, out_dir):
     temp_files = []
 
     cmd0 = 'macs2 callpeak '
-    cmd0 += '-t {} -f BED -n {} -g {} -p {} '
+    cmd0 += '-t {} {} -f BED -n {} -g {} -p {} '
     cmd0 += '--shift {} --extsize {} '
     cmd0 += '--nomodel -B --SPMR '
     cmd0 += '--keep-dup all --call-summits '
     cmd0 = cmd0.format(
         ta,
+        '-c {}'.format(ctl_ta) if ctl_ta else '',
         prefix,
         gensz,
         pval_thresh,
@@ -158,7 +167,7 @@ def main():
 
     log.info('Calling peaks and generating signal tracks with MACS2...')
     fc_bigwig, pval_bigwig = macs2_signal_track(
-        args.ta, args.chrsz, args.gensz, args.pval_thresh,
+        args.tas[0], args.tas[1], args.chrsz, args.gensz, args.pval_thresh,
         args.smooth_win, args.out_dir)
 
     log.info('List all files in output directory...')

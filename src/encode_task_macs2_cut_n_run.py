@@ -14,8 +14,10 @@ from encode_lib_common import (
 def parse_arguments():
     parser = argparse.ArgumentParser(prog='ENCODE MACS2 callpeak',
                                      description='')
-    parser.add_argument('ta', type=str,
-                        help='Path for TAGALIGN file.')
+    parser.add_argument(
+        'tas', type=str, nargs='+',
+        help='Path for TAGALIGN file (first) and '
+             'control TAGALIGN file (second; optional).')
     parser.add_argument('--chrsz', type=str,
                         help='2-col chromosome sizes file.')
     parser.add_argument('--gensz', type=str,
@@ -35,33 +37,42 @@ def parse_arguments():
                                  'CRITICAL'],
                         help='Log level')
     args = parser.parse_args()
+    if len(args.tas) == 1:
+        args.tas.append('')
 
     log.setLevel(args.log_level)
     log.info(sys.argv)
     return args
 
 
-def macs2(ta, chrsz, gensz, pval_thresh, smooth_win, cap_num_peak,
+def macs2(ta, ctl_ta, chrsz, gensz, pval_thresh, smooth_win, cap_num_peak,
           out_dir):
-    prefix = os.path.join(out_dir,
-                          os.path.basename(strip_ext_ta(ta)))
+    basename_ta = os.path.basename(strip_ext_ta(ta))
+    if ctl_ta:
+        basename_ctl_ta = os.path.basename(strip_ext_ta(ctl_ta))
+        basename_prefix = '{}_x_{}'.format(basename_ta, basename_ctl_ta)
+        if len(basename_prefix) > 200:  # UNIX cannot have len(filename) > 255
+            basename_prefix = '{}_x_control'.format(basename_ta)
+    else:
+        basename_prefix = basename_ta
+    prefix = os.path.join(out_dir, basename_prefix)
     npeak = '{}.{}.{}.narrowPeak.gz'.format(
         prefix,
         'pval{}'.format(pval_thresh),
         human_readable_number(cap_num_peak))
-    # temporary files
     npeak_tmp = '{}.tmp'.format(npeak)
 
     shiftsize = -int(round(float(smooth_win)/2.0))
     temp_files = []
 
     cmd0 = 'macs2 callpeak '
-    cmd0 += '-t {} -f BED -n {} -g {} -p {} '
+    cmd0 += '-t {} {} -f BED -n {} -g {} -p {} '
     cmd0 += '--shift {} --extsize {} '
     cmd0 += '--nomodel -B --SPMR '
     cmd0 += '--keep-dup all --call-summits '
     cmd0 = cmd0.format(
         ta,
+        '-c {}'.format(ctl_ta) if ctl_ta else '',
         prefix,
         gensz,
         pval_thresh,
@@ -101,7 +112,7 @@ def main():
 
     log.info('Calling peaks macs2...')
     npeak = macs2(
-        args.ta, args.chrsz, args.gensz, args.pval_thresh,
+        args.tas[0], args.tas[1], args.chrsz, args.gensz, args.pval_thresh,
         args.smooth_win, args.cap_num_peak,
         args.out_dir)
 
