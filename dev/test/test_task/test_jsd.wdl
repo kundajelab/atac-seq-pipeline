@@ -1,6 +1,6 @@
-# ENCODE DCC atac-Seq pipeline tester for task jsd
+# ENCODE DCC cut_n_run-Seq pipeline tester for task jsd
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_jsd {
@@ -18,7 +18,7 @@ workflow test_jsd {
 	Int jsd_time_hr = 6
 	String jsd_disks = 'local-disk 100 HDD'
 
-	call atac.jsd as se_jsd { input :
+	call cut_n_run.jsd as se_jsd { input :
 		nodup_bams = se_nodup_bams,
 		blacklist = se_blacklist,
 		mapq_thresh = mapq_thresh,
@@ -29,7 +29,7 @@ workflow test_jsd {
 		disks = jsd_disks,
 	}
 
-	call atac.jsd as se_jsd_fake_blacklist { input :
+	call cut_n_run.jsd as se_jsd_fake_blacklist { input :
 		nodup_bams = se_nodup_bams,
 		blacklist = se_fake_blacklist,
 		mapq_thresh = mapq_thresh,

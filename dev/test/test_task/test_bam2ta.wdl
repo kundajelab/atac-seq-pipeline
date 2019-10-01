@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_bam2ta {
@@ -22,7 +22,7 @@ workflow test_bam2ta {
 	Int bam2ta_time_hr = 6
 	String bam2ta_disks = 'local-disk 100 HDD'
 
-	call atac.bam2ta as pe_bam2ta { input :
+	call cut_n_run.bam2ta as pe_bam2ta { input :
 		bam = pe_nodup_bam,
 		disable_tn5_shift = false,
 		subsample = 0,
@@ -34,7 +34,7 @@ workflow test_bam2ta {
 		time_hr = bam2ta_time_hr,
 		disks = bam2ta_disks,
 	}
-	call atac.bam2ta as pe_bam2ta_disable_tn5_shift { input :
+	call cut_n_run.bam2ta as pe_bam2ta_disable_tn5_shift { input :
 		bam = pe_nodup_bam,
 		disable_tn5_shift = true,
 		subsample = 0,
@@ -46,7 +46,7 @@ workflow test_bam2ta {
 		time_hr = bam2ta_time_hr,
 		disks = bam2ta_disks,
 	}
-	call atac.bam2ta as pe_bam2ta_subsample { input :
+	call cut_n_run.bam2ta as pe_bam2ta_subsample { input :
 		bam = pe_nodup_bam,
 		disable_tn5_shift = false,
 		subsample = bam2ta_subsample,
@@ -58,7 +58,7 @@ workflow test_bam2ta {
 		time_hr = bam2ta_time_hr,
 		disks = bam2ta_disks,
 	}
-	call atac.bam2ta as se_bam2ta { input :
+	call cut_n_run.bam2ta as se_bam2ta { input :
 		bam = se_nodup_bam,
 		disable_tn5_shift = false,
 		subsample = 0,
@@ -70,7 +70,7 @@ workflow test_bam2ta {
 		time_hr = bam2ta_time_hr,
 		disks = bam2ta_disks,
 	}
-	call atac.bam2ta as se_bam2ta_disable_tn5_shift { input :
+	call cut_n_run.bam2ta as se_bam2ta_disable_tn5_shift { input :
 		bam = se_nodup_bam,
 		disable_tn5_shift = true,
 		subsample = 0,
@@ -82,7 +82,7 @@ workflow test_bam2ta {
 		time_hr = bam2ta_time_hr,
 		disks = bam2ta_disks,
 	}
-	call atac.bam2ta as se_bam2ta_subsample { input :
+	call cut_n_run.bam2ta as se_bam2ta_subsample { input :
 		bam = se_nodup_bam,
 		disable_tn5_shift = false,
 		subsample = bam2ta_subsample,

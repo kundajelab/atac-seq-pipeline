@@ -2,13 +2,13 @@
 set -e # exit on error
 
 if [ $# -lt 2 ]; then
-  echo "Usage: ./test_atac.sh [INPUT_JSON] [GCLOUD_SERVICE_ACCOUNT_SECRET_JSON_FILE] [DOCKER_IMAGE](optional)"
+  echo "Usage: ./test_cut_n_run.sh [INPUT_JSON] [GCLOUD_SERVICE_ACCOUNT_SECRET_JSON_FILE] [DOCKER_IMAGE](optional)"
   exit 1
 fi
 if [ $# -gt 2 ]; then
   DOCKER_IMAGE=$3
 else
-  DOCKER_IMAGE=quay.io/encode-dcc/atac-seq-pipeline:test-dev-v1.5.0
+  DOCKER_IMAGE=quay.io/encode-dcc/cut-n-run-pipeline:test-dev-v1.5.0
 fi
 INPUT=$1
 GCLOUD_SERVICE_ACCOUNT_SECRET_JSON_FILE=$2
@@ -44,7 +44,7 @@ java -Dconfig.file=backend_gcp_service_account.conf \
 -Dbackend.providers.google.config.genomics.auth=service-account \
 -Dbackend.providers.google.config.filesystems.gcs.auth=service-account \
 -jar ${CROMWELL_JAR} run \
-../../../atac.wdl \
+../../../cut_n_run.wdl \
 -i ${INPUT} -o ${TMP_WF_OPT} -m ${METADATA}
  
 rm -f tmp_secret_key ${TMP_WF_OPT}

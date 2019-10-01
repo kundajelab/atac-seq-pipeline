@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_tss_enrich {
@@ -11,7 +11,7 @@ workflow test_tss_enrich {
 
 	File ref_tss_enrich_qc
 
-	call atac.tss_enrich { input : 
+	call cut_n_run.tss_enrich { input : 
 		read_len_log = read_len_log,
 		nodup_bam = nodup_bam,
 		chrsz = chrsz,

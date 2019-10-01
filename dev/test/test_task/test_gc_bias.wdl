@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_gc_bias {
@@ -10,7 +10,7 @@ workflow test_gc_bias {
 
 	File ref_gc_log
 
-	call atac.gc_bias { input : 
+	call cut_n_run.gc_bias { input : 
 		nodup_bam = nodup_bam,
 
 		ref_fa = ref_fa,

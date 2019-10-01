@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_preseq {
@@ -11,7 +11,7 @@ workflow test_preseq {
 	File ref_picard_est_lib_size_qc
 	File ref_preseq_log
 
-	call atac.preseq { input : 
+	call cut_n_run.preseq { input : 
 		paired_end = paired_end,
 		bam = bam,
 

@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester for task filter
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_filter {
@@ -30,7 +30,7 @@ workflow test_filter {
 	Int filter_time_hr = 24
 	String filter_disks = 'local-disk 100 HDD'
 
-	call atac.filter as pe_filter { input :
+	call cut_n_run.filter as pe_filter { input :
 		bam = pe_bam,
 		multimapping = multimapping,
 		paired_end = true,
@@ -47,7 +47,7 @@ workflow test_filter {
 		time_hr = filter_time_hr,
 		disks = filter_disks,
 	}
-	call atac.filter as pe_filter_no_multimapping { input :
+	call cut_n_run.filter as pe_filter_no_multimapping { input :
 		bam = pe_bam_no_multimapping,
 		multimapping = 0,
 		paired_end = true,
@@ -64,7 +64,7 @@ workflow test_filter {
 		time_hr = filter_time_hr,
 		disks = filter_disks,
 	}
-	call atac.filter as pe_filter_no_dup_removal { input :
+	call cut_n_run.filter as pe_filter_no_dup_removal { input :
 		bam = pe_bam,
 		multimapping = multimapping,
 		paired_end = true,
@@ -81,7 +81,7 @@ workflow test_filter {
 		time_hr = filter_time_hr,
 		disks = filter_disks,
 	}
-	call atac.filter as se_filter { input :
+	call cut_n_run.filter as se_filter { input :
 		bam = se_bam,
 		multimapping = multimapping,
 		paired_end = false,
@@ -98,7 +98,7 @@ workflow test_filter {
 		time_hr = filter_time_hr,
 		disks = filter_disks,
 	}
-	call atac.filter as se_filter_no_multimapping { input :
+	call cut_n_run.filter as se_filter_no_multimapping { input :
 		bam = se_bam_no_multimapping,
 		multimapping = 0,
 		paired_end = false,
@@ -115,7 +115,7 @@ workflow test_filter {
 		time_hr = filter_time_hr,
 		disks = filter_disks,
 	}
-	call atac.filter as se_filter_no_dup_removal { input :
+	call cut_n_run.filter as se_filter_no_dup_removal { input :
 		bam = se_bam,
 		multimapping = multimapping,
 		paired_end = false,

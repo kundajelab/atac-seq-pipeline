@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_compare_signal_to_roadmap {
@@ -11,7 +11,7 @@ workflow test_compare_signal_to_roadmap {
 
 	File ref_roadmap_compare_log
 
-	call atac.compare_signal_to_roadmap { input : 
+	call cut_n_run.compare_signal_to_roadmap { input : 
 		pval_bw = pval_bw,
 
 		reg2map_bed = reg2map_bed,

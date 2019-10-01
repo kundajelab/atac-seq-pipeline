@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester for task trim_adapter
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_trim_adapter {
@@ -22,7 +22,7 @@ workflow test_trim_adapter {
 	String trim_adapter_disks = 'local-disk 100 HDD'
 
 	# pe: with adapters input, w/o auto detection
-	call atac.trim_adapter as pe_trim_adapter { input :
+	call cut_n_run.trim_adapter as pe_trim_adapter { input :
 		fastqs_R1 = pe_fastqs_R1,
 		fastqs_R2 = pe_fastqs_R2,
 		adapters_R1 = pe_adapters_R1,
@@ -37,7 +37,7 @@ workflow test_trim_adapter {
 		disks = trim_adapter_disks,
 	}
 	# pe: w/o adapters input, with auto detection
-	call atac.trim_adapter as pe_trim_adapter_auto { input :
+	call cut_n_run.trim_adapter as pe_trim_adapter_auto { input :
 		fastqs_R1 = pe_fastqs_R1,
 		fastqs_R2 = pe_fastqs_R2,
 		adapters_R1 = [],
@@ -52,7 +52,7 @@ workflow test_trim_adapter {
 		disks = trim_adapter_disks,
 	}
 	# se: with adapters input, w/o auto detection
-	call atac.trim_adapter as se_trim_adapter { input :
+	call cut_n_run.trim_adapter as se_trim_adapter { input :
 		fastqs_R1 = se_fastqs_R1,
 		fastqs_R2 = [],
 		adapters_R1 = se_adapters_R1,
@@ -67,7 +67,7 @@ workflow test_trim_adapter {
 		disks = trim_adapter_disks,
 	}
 	# se: w/o adapters input, with auto detection
-	call atac.trim_adapter as se_trim_adapter_auto { input :
+	call cut_n_run.trim_adapter as se_trim_adapter_auto { input :
 		fastqs_R1 = se_fastqs_R1,
 		fastqs_R2 = [],
 		adapters_R1 = [],

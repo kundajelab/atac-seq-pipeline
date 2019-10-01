@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester for task macs2
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_macs2_signal_track {
@@ -19,7 +19,7 @@ workflow test_macs2_signal_track {
 	Int macs2_time_hr = 24
 	String macs2_disks = 'local-disk 100 HDD'
 
-	call atac.macs2_signal_track as se_macs2_signal_track { input :
+	call cut_n_run.macs2_signal_track as se_macs2_signal_track { input :
 		ta = se_ta,
 		gensz = se_gensz,
 		chrsz = se_chrsz,

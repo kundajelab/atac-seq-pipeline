@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_xcor {
@@ -21,7 +21,7 @@ workflow test_xcor {
 	Int xcor_time_hr = 6
 	String xcor_disks = 'local-disk 100 HDD'
 
-	call atac.xcor as pe_xcor { input :
+	call cut_n_run.xcor as pe_xcor { input :
 		ta = pe_ta,
 		subsample = xcor_subsample_default,
 		paired_end = true,
@@ -32,7 +32,7 @@ workflow test_xcor {
 		time_hr = xcor_time_hr,
 		disks = xcor_disks,
 	}
-	call atac.xcor as pe_xcor_subsample { input :
+	call cut_n_run.xcor as pe_xcor_subsample { input :
 		ta = pe_ta,
 		subsample = xcor_subsample,
 		paired_end = true,
@@ -43,7 +43,7 @@ workflow test_xcor {
 		time_hr = xcor_time_hr,
 		disks = xcor_disks,
 	}
-	call atac.xcor as se_xcor { input :
+	call cut_n_run.xcor as se_xcor { input :
 		ta = se_ta,
 		subsample = xcor_subsample_default,
 		paired_end = false,
@@ -54,7 +54,7 @@ workflow test_xcor {
 		time_hr = xcor_time_hr,
 		disks = xcor_disks,
 	}
-	call atac.xcor as se_xcor_subsample { input :
+	call cut_n_run.xcor as se_xcor_subsample { input :
 		ta = se_ta,
 		subsample = xcor_subsample,
 		paired_end = false,

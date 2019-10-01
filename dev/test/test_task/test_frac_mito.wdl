@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester for task frac_mito
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_frac_mito {
@@ -9,7 +9,7 @@ workflow test_frac_mito {
 
 	File ref_frac_mito_qc
 
-	call atac.frac_mito as frac_mito { input:
+	call cut_n_run.frac_mito as frac_mito { input:
 		non_mito_samstat = non_mito_samstat,
 		mito_samstat = mito_samstat,
 	}

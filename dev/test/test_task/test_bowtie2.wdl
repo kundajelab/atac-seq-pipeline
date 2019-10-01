@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester for task bowtie2
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_bowtie2 {
@@ -28,7 +28,7 @@ workflow test_bowtie2 {
 	Int bowtie2_time_hr = 48
 	String bowtie2_disks = 'local-disk 100 HDD'
 
-	call atac.align as pe_bowtie2 { input :
+	call cut_n_run.align as pe_bowtie2 { input :
 		aligner = 'bowtie2',
 		idx_tar = pe_bowtie2_idx_tar,
 		mito_chr_name = 'chrM',
@@ -43,7 +43,7 @@ workflow test_bowtie2 {
 		time_hr = bowtie2_time_hr,
 		disks = bowtie2_disks,
 	}
-	call atac.align as pe_bowtie2_no_multimapping { input :
+	call cut_n_run.align as pe_bowtie2_no_multimapping { input :
 		aligner = 'bowtie2',
 		idx_tar = pe_bowtie2_idx_tar,
 		mito_chr_name = 'chrM',
@@ -58,7 +58,7 @@ workflow test_bowtie2 {
 		time_hr = bowtie2_time_hr,
 		disks = bowtie2_disks,
 	}
-	call atac.align as se_bowtie2 { input :
+	call cut_n_run.align as se_bowtie2 { input :
 		aligner = 'bowtie2',
 		idx_tar = se_bowtie2_idx_tar,
 		mito_chr_name = 'chrM',
@@ -72,7 +72,7 @@ workflow test_bowtie2 {
 		time_hr = bowtie2_time_hr,
 		disks = bowtie2_disks,
 	}
-	call atac.align as se_bowtie2_no_multimapping { input :
+	call cut_n_run.align as se_bowtie2_no_multimapping { input :
 		aligner = 'bowtie2',
 		idx_tar = se_bowtie2_idx_tar,
 		mito_chr_name = 'chrM',

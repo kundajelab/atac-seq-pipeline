@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_overlap {
@@ -16,7 +16,7 @@ workflow test_overlap {
 	String se_blacklist
 	String se_chrsz
 
-	call atac.overlap as se_overlap { input :
+	call cut_n_run.overlap as se_overlap { input :
 		prefix = 'rep1-rep2',
 		peak1 = se_peak_rep1,
 		peak2 = se_peak_rep2,

@@ -1,6 +1,6 @@
 # ENCODE DCC ATAC-Seq/DNase-Seq pipeline tester
 # Author: Jin Lee (leepc12@gmail.com)
-import '../../../atac.wdl' as atac
+import '../../../cut_n_run.wdl' as cut_n_run
 import 'compare_md5sum.wdl' as compare_md5sum
 
 workflow test_reproducibility {
@@ -12,7 +12,7 @@ workflow test_reproducibility {
 
 	String ref_se_reproducibility_qc
 
-	call atac.reproducibility as se_reproducibility { input :
+	call cut_n_run.reproducibility as se_reproducibility { input :
 		prefix = 'overlap',
 		peaks = [se_overlap_peak_rep1_vs_rep2],
 		peaks_pr = [se_overlap_peak_rep1_pr, se_overlap_peak_rep2_pr],
