@@ -1,0 +1,24 @@
+{
+    "cut_n_run.genome_tsv" : "/mnt/data/pipeline_genome_data/hg19_klab.tsv",
+    "cut_n_run.fastqs_rep1_R1" : [
+        "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/rep1/SRR8748851_R1_001.fastq.gz"
+    ],
+    "cut_n_run.fastqs_rep1_R2" : [
+        "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/rep1/SRR8748851_R2_001.fastq.gz"
+    ],
+    "cut_n_run.fastqs_rep2_R1" : [
+        "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/rep2/SRR8748852_R1_001.fastq.gz"
+    ],
+    "cut_n_run.fastqs_rep2_R2" : [
+        "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/rep2/SRR8748852_R2_001.fastq.gz"
+    ],
+    "cut_n_run.ctl_fastqs_rep1_R1" : [
+        "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/ctl/SRR8748847_1.fastq.gz"
+    ],
+    "cut_n_run.ctl_fastqs_rep1_R2" : [
+        "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/ctl/SRR8748847_2.fastq.gz"
+    ],
+    "cut_n_run.paired_end" : true,
+    "cut_n_run.title" : "h1_oct4",
+    "cut_n_run.description" : "Cut-n-run test sample h1_oct4"
+}

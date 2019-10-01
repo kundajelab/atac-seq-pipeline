@@ -2,7 +2,7 @@
     "cut_n_run.title" : "Example (paired end)",
     "cut_n_run.description" : "This is a template input JSON for paired ended sample.",
 
-    "cut_n_run.pipeline_type" : "atac",
+    "cut_n_run.pipeline_type" : "cut_n_run",
     "cut_n_run.align_only" : false,
     "cut_n_run.true_rep_only" : false,
 
@@ -16,13 +16,10 @@
     "cut_n_run.fastqs_rep2_R1" : [ "rep2_R1_L1.fastq.gz", "rep2_R1_L2.fastq.gz" ],
     "cut_n_run.fastqs_rep2_R2" : [ "rep2_R2_L1.fastq.gz", "rep2_R2_L2.fastq.gz" ],
 
-    "cut_n_run.auto_detect_adapter" : false,
-    "cut_n_run.adapter" : "AATTCCGG",
-    "cut_n_run.adapters_rep1_R1" : [ "AATTCCGG", "AATTCCGG", "AATTCCGG" ],
-    "cut_n_run.adapters_rep1_R2" : [ "AATTCCGG", "AATTCCGG" ],
-    "cut_n_run.adapters_rep2_R1" : [ "AATTCCGG", "AATTCCGG", "AATTCCGG" ],
-    "cut_n_run.adapters_rep2_R2" : [ "AATTCCGG", "AATTCCGG" ],
-    "cut_n_run.cutadapt_param" : "-e 0.1 -m 5",
+    "cut_n_run.ctl_fastqs_rep1_R1" : [ "rep1_R1_L1.fastq.gz", "rep1_R1_L2.fastq.gz", "rep1_R1_L3.fastq.gz" ],
+    "cut_n_run.ctl_fastqs_rep1_R2" : [ "rep1_R2_L1.fastq.gz", "rep1_R2_L2.fastq.gz", "rep1_R2_L3.fastq.gz" ],
+    "cut_n_run.ctl_fastqs_rep2_R1" : [ "rep2_R1_L1.fastq.gz", "rep2_R1_L2.fastq.gz" ],
+    "cut_n_run.ctl_fastqs_rep2_R2" : [ "rep2_R2_L1.fastq.gz", "rep2_R2_L2.fastq.gz" ],
 
     "cut_n_run.multimapping" : 4,
 
@@ -48,13 +45,8 @@
 
     "cut_n_run.enable_preseq" : false,
     "cut_n_run.enable_compare_to_roadmap" : false,
-    "cut_n_run.enable_tss_enrich" : true,
-    "cut_n_run.enable_gc_bias" : true,
-
-    "cut_n_run.trim_adapter_cpu" : 2,
-    "cut_n_run.trim_adapter_mem_mb" : 12000,
-    "cut_n_run.trim_adapter_time_hr" : 24,
-    "cut_n_run.trim_adapter_disks" : "local-disk 100 HDD",
+    "cut_n_run.enable_tss_enrich" : false,
+    "cut_n_run.enable_gc_bias" : false,
 
     "cut_n_run.align_cpu" : 4,
     "cut_n_run.align_mem_mb" : 20000,
