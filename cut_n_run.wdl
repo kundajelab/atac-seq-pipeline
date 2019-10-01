@@ -17,6 +17,8 @@ workflow atac {
 	Boolean? paired_end				# to define endedness for all replciates
 									#	if defined, this will override individual endedness below
 	Array[Boolean] paired_ends = []	# to define endedness for individual replicate
+	Boolean? ctl_paired_end
+	Array[Boolean] ctl_paired_ends = []
 
 	# genome TSV
 	# 	you can define any genome parameters either in this TSV
@@ -196,8 +198,11 @@ workflow atac {
 	Array[File?] ctl_merged_fastqs_R2 = [] 	
 
 	Array[File?] bams = []
-	Array[File?] nodup_bams = []
-	Array[File?] tas = []
+	Array[File?] ctl_bams = [] 		# [rep_id]
+	Array[File?] nodup_bams = [] 	# [rep_id]
+	Array[File?] ctl_nodup_bams = [] # [rep_id]
+	Array[File?] tas = []			# [rep_id]
+	Array[File?] ctl_tas = []		# [rep_id]
 
 	# other input types (peak)
 	Array[File?] peaks = []			# per replicate
@@ -314,13 +319,38 @@ workflow atac {
 		[fastqs_rep1_R2, fastqs_rep2_R2, fastqs_rep3_R2, fastqs_rep4_R2, fastqs_rep5_R2,
 		fastqs_rep6_R2, fastqs_rep7_R2, fastqs_rep8_R2, fastqs_rep9_R2, fastqs_rep10_R2]
 
-	# temporary 2-dim adapters array [rep_id][merge_id]
-	Array[Array[String]] adapters_R1 = 
-		[adapters_rep1_R1, adapters_rep2_R1, adapters_rep3_R1, adapters_rep4_R1, adapters_rep5_R1,
-		adapters_rep6_R1, adapters_rep7_R1, adapters_rep8_R1, adapters_rep9_R1, adapters_rep10_R1]
-	Array[Array[String]] adapters_R2 = 
-		[adapters_rep1_R2, adapters_rep2_R2, adapters_rep3_R2, adapters_rep4_R2, adapters_rep5_R2,
-		adapters_rep6_R2, adapters_rep7_R2, adapters_rep8_R2, adapters_rep9_R2, adapters_rep10_R2]
+	# temporary 2-dim ctl fastqs array [rep_id][merge_id]
+	Array[Array[File]] ctl_fastqs_R1 = 
+		if length(ctl_fastqs_rep10_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1, ctl_fastqs_rep5_R1,
+			ctl_fastqs_rep6_R1, ctl_fastqs_rep7_R1, ctl_fastqs_rep8_R1, ctl_fastqs_rep9_R1, ctl_fastqs_rep10_R1]
+		else if length(ctl_fastqs_rep9_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1, ctl_fastqs_rep5_R1,
+			ctl_fastqs_rep6_R1, ctl_fastqs_rep7_R1, ctl_fastqs_rep8_R1, ctl_fastqs_rep9_R1]
+		else if length(ctl_fastqs_rep8_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1, ctl_fastqs_rep5_R1,
+			ctl_fastqs_rep6_R1, ctl_fastqs_rep7_R1, ctl_fastqs_rep8_R1]
+		else if length(ctl_fastqs_rep7_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1, ctl_fastqs_rep5_R1,
+			ctl_fastqs_rep6_R1, ctl_fastqs_rep7_R1]
+		else if length(ctl_fastqs_rep6_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1, ctl_fastqs_rep5_R1,
+			ctl_fastqs_rep6_R1]
+		else if length(ctl_fastqs_rep5_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1, ctl_fastqs_rep5_R1]
+		else if length(ctl_fastqs_rep4_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1, ctl_fastqs_rep4_R1]
+		else if length(ctl_fastqs_rep3_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1, ctl_fastqs_rep3_R1]
+		else if length(ctl_fastqs_rep2_R1)>0 then
+			[ctl_fastqs_rep1_R1, ctl_fastqs_rep2_R1]
+		else if length(ctl_fastqs_rep1_R1)>0 then
+			[ctl_fastqs_rep1_R1]
+		else []
+	# no need to do that for R2 (R1 array will be used to determine presense of fastq for each rep)
+	Array[Array[File]] ctl_fastqs_R2 = 
+		[ctl_fastqs_rep1_R2, ctl_fastqs_rep2_R2, ctl_fastqs_rep3_R2, ctl_fastqs_rep4_R2, ctl_fastqs_rep5_R2,
+		ctl_fastqs_rep6_R2, ctl_fastqs_rep7_R2, ctl_fastqs_rep8_R2, ctl_fastqs_rep9_R2, ctl_fastqs_rep10_R2]
 
 	# temporary variables to get number of replicates
 	# 	WDLic implementation of max(A,B,C,...)
@@ -604,7 +634,6 @@ workflow atac {
 				fastq_R1 = ctl_merged_fastq_R1_,
 				fastq_R2 = ctl_merged_fastq_R2_,
 				paired_end = ctl_paired_end_,
-				use_bwa_mem_for_pe = use_bwa_mem_for_pe,
 				cpu = align_cpu,
 				mem_mb = align_mem_mb,
 				time_hr = align_time_hr,
@@ -830,11 +859,6 @@ workflow atac {
 		File? peak_pr2_ = if has_output_of_call_peak_pr2 then peaks_pr2[i]
 			else call_peak_pr2.peak
 	}
-
-	# actually not an array
-	Array[File?] chosen_ctl_ta_pooled = if !has_all_input_of_choose_ctl then []
-		else if num_ctl < 2 then [ctl_ta_[0]] # choose first (only) control
-		else select_all([pool_ta_ctl.ta_pooled]) # choose pooled control
 
 	Boolean has_input_of_call_peak_pooled = defined(pool_ta.ta_pooled)
 	Boolean has_output_of_call_peak_pooled = defined(peak_pooled)
@@ -1438,6 +1462,34 @@ task jsd {
 		time : time_hr
 		disks : disks
 	}
+}
+
+task choose_ctl {
+	Array[File?] tas
+	Array[File?] ctl_tas
+	File? ta_pooled
+	File? ctl_ta_pooled
+	Boolean always_use_pooled_ctl # always use pooled control for all exp rep.
+	Float ctl_depth_ratio 		# if ratio between controls is higher than this
+								# then always use pooled control for all exp rep.
+	command {
+		python3 $(which encode_task_choose_ctl.py) \
+			--tas ${sep=' ' tas} \
+			--ctl-tas ${sep=' ' ctl_tas} \
+			${'--ta-pooled ' + ta_pooled} \
+			${'--ctl-ta-pooled ' + ctl_ta_pooled} \
+			${if always_use_pooled_ctl then '--always-use-pooled-ctl' else ''} \
+			${'--ctl-depth-ratio ' + ctl_depth_ratio}
+	}
+	output {
+		Array[File] chosen_ctl_tas = glob('ctl_for_rep*.tagAlign.gz')
+	}
+	runtime {
+		cpu : 1
+		memory : '8000 MB'
+		time : 1
+		disks : 'local-disk 50 HDD'
+	}	
 }
 
 task count_signal_track {
