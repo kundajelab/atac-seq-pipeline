@@ -3,7 +3,7 @@ set -e  # Stop on error
 
 SH_SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
 
-CONDA_ENV_PY3=encode-atac-seq-pipeline
+CONDA_ENV_PY3=cut-n-run-pipeline
 SRC_DIR=${SH_SCRIPT_DIR}/../src
 
 conda --version  # check if conda exists

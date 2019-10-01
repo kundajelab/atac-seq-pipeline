@@ -3,8 +3,8 @@ set -e  # Stop on error
 
 SH_SCRIPT_DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)
 
-CONDA_ENV_PY3=encode-atac-seq-pipeline
-CONDA_ENV_PY2=encode-atac-seq-pipeline-python2
+CONDA_ENV_PY3=cut-n-run-pipeline
+CONDA_ENV_PY2=cut-n-run-pipeline-python2
 REQ_TXT_PY3=${SH_SCRIPT_DIR}/requirements.txt
 REQ_TXT_PY2=${SH_SCRIPT_DIR}/requirements_py2.txt
 SRC_DIR=${SH_SCRIPT_DIR}/../src
