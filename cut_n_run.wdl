@@ -5,7 +5,7 @@
 #CAPER singularity docker://quay.io/encode-dcc/cut-n-run-pipeline:dev-v0.1.0
 #CROO out_def https://storage.googleapis.com/encode-pipeline-output-definition/cut_n_run.croo.json
 
-workflow atac {
+workflow cut_n_run {
 	# pipeline version
 	String pipeline_ver = 'dev-v0.1.0'
 
@@ -74,7 +74,7 @@ workflow atac {
 	Boolean enable_gc_bias = false
 
 	# parameters for aligner and filter
-	Int multimapping = 4			# for samples with multimapping reads
+	Int multimapping = 0			# for samples with multimapping reads
 	String dup_marker = 'picard'	# picard, sambamba
 	Boolean no_dup_removal = false 	# keep all dups in final BAM
 	Int? mapq_thresh				# threshold for low MAPQ reads removal
@@ -473,7 +473,7 @@ workflow atac {
 				non_mito_samstat = align.non_mito_samstat_qc,
 				mito_samstat = align_mito.samstat_qc
 			}
-		}		
+		}
 
 		Boolean has_input_of_filter = has_output_of_align || defined(align.bam)
 		Boolean has_output_of_filter = i<length(nodup_bams) && defined(nodup_bams[i])
@@ -1554,7 +1554,7 @@ task call_peak {
 
 		python3 $(which encode_task_post_call_peak_cut_n_run.py) \
 			$(ls *Peak.gz) \
-			${'--ta ' + ta} \
+			${'--ta ' + tas[0]} \
 			${if keep_irregular_chr_in_bfilt_peak then '--keep-irregular-chr' else ''} \
 			${'--chrsz ' + chrsz} \
 			${'--peak-type ' + peak_type} \
