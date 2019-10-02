@@ -22,6 +22,7 @@
     "cut_n_run.ctl_fastqs_rep2_R2" : [ "rep2_R2_L1.fastq.gz", "rep2_R2_L2.fastq.gz" ],
 
     "cut_n_run.multimapping" : 0,
+    "cut_n_run.filter_chrs" : ["chrM", "MT"],
 
     "cut_n_run.mapq_thresh" : 30,
     "cut_n_run.dup_marker" : "picard",
@@ -41,7 +42,8 @@
     "cut_n_run.enable_count_signal_track" : false,
     "cut_n_run.keep_irregular_chr_in_bfilt_peak" : false,        
 
-    "cut_n_run.regex_filter_reads" : "chrM",
+    "cut_n_run.always_use_pooled_ctl": false,
+    "cut_n_run.ctl_depth_ratio": 1.2,
 
     "cut_n_run.enable_preseq" : false,
     "cut_n_run.enable_compare_to_roadmap" : false,
