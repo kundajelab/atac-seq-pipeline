@@ -36,6 +36,7 @@ pybigwig ==0.3.13
 openssl ==1.0.2t  # important to get the same random value
 deeptools ==3.3.1
 cutadapt ==2.5
+trimmomatic==0.36
 preseq ==2.0.3
 pyfaidx ==0.5.5.2
 
