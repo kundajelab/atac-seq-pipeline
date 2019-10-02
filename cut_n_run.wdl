@@ -70,7 +70,6 @@ workflow cut_n_run {
 	Boolean enable_tss_enrich = false
 	Boolean enable_annot_enrich = false
 	Boolean enable_jsd = true 		# enable JSD plot generation (deeptools fingerprint)
-	Boolean enable_compare_to_roadmap = false
 	Boolean enable_gc_bias = false
 
 	# parameters for aligner and filter
@@ -87,6 +86,10 @@ workflow cut_n_run {
 	Int subsample_reads = 0			# subsample TAGALIGN (0: no subsampling)
 	Int xcor_subsample_reads = 25000000 # subsample TAG-ALIGN for xcor only (not used for other downsteam analyses)
 
+	# parameters for peak calling
+	Boolean always_use_pooled_ctl = false # always use pooled control for all exp rep.
+	Float ctl_depth_ratio = 1.2 	# if ratio between controls is higher than this
+									# then always use pooled control for all exp rep.
 	# parameters for peak calling
 	Int cap_num_peak = 300000		# cap number of raw peaks for each replicate
 	Float pval_thresh = 0.01		# p.value threshold for peak caller
@@ -585,15 +588,6 @@ workflow cut_n_run {
 				enh = enh_,
 			}
 		}
-		if ( enable_compare_to_roadmap && defined(macs2_signal_track.pval_bw) &&
-			 defined(reg2map_) && defined(roadmap_meta_) ) {
-			call compare_signal_to_roadmap { input :
-				pval_bw = macs2_signal_track.pval_bw,
-				reg2map_bed = reg2map_bed_,
-				reg2map = reg2map_,
-				roadmap_meta = roadmap_meta_,
-			}
-		}
 	}
 
 	# align each control
@@ -627,6 +621,7 @@ workflow cut_n_run {
 			call align as align_ctl { input :
 				aligner = aligner_,
 				mito_chr_name = mito_chr_name_,
+				chrsz = chrsz_,
 				custom_align_py = custom_align_py,
 				idx_tar = if aligner=='bwa' then bwa_idx_tar_
 					else if aligner=='bowtie2' then bowtie2_idx_tar_
@@ -634,6 +629,7 @@ workflow cut_n_run {
 				fastq_R1 = ctl_merged_fastq_R1_,
 				fastq_R2 = ctl_merged_fastq_R2_,
 				paired_end = ctl_paired_end_,
+				multimapping = multimapping,
 				cpu = align_cpu,
 				mem_mb = align_mem_mb,
 				time_hr = align_time_hr,
@@ -649,6 +645,7 @@ workflow cut_n_run {
 			call filter as filter_ctl { input :
 				bam = ctl_bam_,
 				paired_end = ctl_paired_end_,
+				multimapping = multimapping,				
 				dup_marker = dup_marker,
 				mapq_thresh = mapq_thresh_,
 				filter_chrs = filter_chrs,
@@ -672,6 +669,7 @@ workflow cut_n_run {
 				subsample = subsample_reads,
 				paired_end = ctl_paired_end_,
 				mito_chr_name = mito_chr_name_,
+				disable_tn5_shift = false,
 
 				cpu = bam2ta_cpu,
 				mem_mb = bam2ta_mem_mb,
@@ -718,41 +716,6 @@ workflow cut_n_run {
 		}
 	}
 
-	Boolean has_all_input_of_choose_ctl = length(select_all(ta_))==num_rep
-		&& length(select_all(ctl_ta_))==num_ctl && num_ctl > 0
-	if ( has_all_input_of_choose_ctl ) {
-		# choose appropriate control for each exp IP replicate
-		# outputs:
-		# 	choose_ctl.idx : control replicate index for each exp replicate 
-		#					-1 means pooled ctl replicate
-		call choose_ctl { input:
-			tas = ta_,
-			ctl_tas = ctl_ta_,
-			ta_pooled = pool_ta.ta_pooled,
-			ctl_ta_pooled = pool_ta_ctl.ta_pooled,
-			always_use_pooled_ctl = always_use_pooled_ctl,
-			ctl_depth_ratio = ctl_depth_ratio,
-		}
-	}
-
-	# make control ta array [[1,2,3,4]] -> [[1],[2],[3],[4]], will be zipped with exp ta array latter
-	Array[Array[File]] chosen_ctl_tas =
-		if has_all_input_of_choose_ctl then transpose(select_all([choose_ctl.chosen_ctl_tas]))
-		else [[],[],[],[],[],[],[],[],[],[]]
-
-	# actually not an array
-	Array[File?] chosen_ctl_ta_pooled = if !has_all_input_of_choose_ctl then []
-		else if num_ctl < 2 then [ctl_ta_[0]] # choose first (only) control
-		else select_all([pool_ta_ctl.ta_pooled]) # choose pooled control
-
-	Boolean has_input_of_count_signal_track_pooled = defined(pool_ta.ta_pooled)
-	if ( has_input_of_count_signal_track_pooled && enable_count_signal_track && num_rep>1 ) {
-		call count_signal_track as count_signal_track_pooled { input :
-			ta = pool_ta.ta_pooled,
-			chrsz = chrsz_,
-		}
-	}
-
 	Boolean has_input_of_jsd = defined(blacklist_) &&
 		length(select_all(nodup_bam_))==num_rep
 	if ( has_input_of_jsd && num_rep > 0 && enable_jsd ) {
@@ -769,6 +732,41 @@ workflow cut_n_run {
 		}
 	}
 
+	Boolean has_all_input_of_choose_ctl = length(select_all(ta_))==num_rep
+		&& length(select_all(ctl_ta_))==num_ctl && num_ctl > 0
+	if ( has_all_input_of_choose_ctl ) {
+		# choose appropriate control for each exp IP replicate
+		# outputs:
+		# 	choose_ctl.idx : control replicate index for each exp replicate 
+		#					-1 means pooled ctl replicate
+		call choose_ctl { input:
+			tas = ta_,
+			ctl_tas = ctl_ta_,
+			ta_pooled = pool_ta.ta_pooled,
+			ctl_ta_pooled = pool_ta_ctl.ta_pooled,
+			always_use_pooled_ctl = always_use_pooled_ctl,
+			ctl_depth_ratio = ctl_depth_ratio,
+		}
+	}
+	# make control ta array [[1,2,3,4]] -> [[1],[2],[3],[4]], will be zipped with exp ta array latter
+	Array[Array[File]] chosen_ctl_tas =
+		if has_all_input_of_choose_ctl then transpose(select_all([choose_ctl.chosen_ctl_tas]))
+		else [[],[],[],[],[],[],[],[],[],[]]
+
+
+	# actually not an array
+	Array[File?] chosen_ctl_ta_pooled = if !has_all_input_of_choose_ctl then []
+		else if num_ctl < 2 then [ctl_ta_[0]] # choose first (only) control
+		else select_all([pool_ta_ctl.ta_pooled]) # choose pooled control
+
+	Boolean has_input_of_count_signal_track_pooled = defined(pool_ta.ta_pooled)
+	if ( has_input_of_count_signal_track_pooled && enable_count_signal_track && num_rep>1 ) {
+		call count_signal_track as count_signal_track_pooled { input :
+			ta = pool_ta.ta_pooled,
+			chrsz = chrsz_,
+		}
+	}
+
 	# we have all tas and ctl_tas (optional for histone chipseq) ready, let's call peaks
 	scatter(i in range(num_rep)) {
 		Boolean has_input_of_call_peak = defined(ta_[i])
@@ -777,6 +775,7 @@ workflow cut_n_run {
 			call call_peak { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
+				smooth_win = smooth_win,
 				custom_call_peak_py = custom_call_peak_py,
 				tas = flatten([[ta_[i]], chosen_ctl_tas[i]]),
 				gensz = gensz_,
@@ -802,6 +801,7 @@ workflow cut_n_run {
 				gensz = gensz_,
 				chrsz = chrsz_,
 				pval_thresh = pval_thresh,
+				smooth_win = smooth_win,
 
 				mem_mb = macs2_signal_track_mem_mb,
 				disks = macs2_signal_track_disks,
@@ -816,6 +816,7 @@ workflow cut_n_run {
 			call call_peak as call_peak_pr1 { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
+				smooth_win = smooth_win,
 				custom_call_peak_py = custom_call_peak_py,
 				tas = flatten([[spr.ta_pr1[i]], chosen_ctl_tas[i]]),
 				gensz = gensz_,
@@ -841,6 +842,7 @@ workflow cut_n_run {
 			call call_peak as call_peak_pr2 { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
+				smooth_win = smooth_win,
 				custom_call_peak_py = custom_call_peak_py,
 				tas = flatten([[spr.ta_pr2[i]], chosen_ctl_tas[i]]),
 				gensz = gensz_,
@@ -868,6 +870,7 @@ workflow cut_n_run {
 		call call_peak as call_peak_pooled { input :
 			peak_caller = peak_caller_,
 			peak_type = peak_type_,
+			smooth_win = smooth_win,
 			custom_call_peak_py = custom_call_peak_py,
 			tas = flatten([select_all([pool_ta.ta_pooled]), chosen_ctl_ta_pooled]),
 			gensz = gensz_,
@@ -893,6 +896,7 @@ workflow cut_n_run {
 			gensz = gensz_,
 			chrsz = chrsz_,
 			pval_thresh = pval_thresh,
+			smooth_win = smooth_win,
 
 			mem_mb = macs2_signal_track_mem_mb,
 			disks = macs2_signal_track_disks,
@@ -907,6 +911,7 @@ workflow cut_n_run {
 		call call_peak as call_peak_ppr1 { input :
 			peak_caller = peak_caller_,
 			peak_type = peak_type_,
+			smooth_win = smooth_win,
 			custom_call_peak_py = custom_call_peak_py,
 			tas = flatten([select_all([pool_ta_pr1.ta_pooled]), chosen_ctl_ta_pooled]),
 			gensz = gensz_,
@@ -932,6 +937,7 @@ workflow cut_n_run {
 		call call_peak as call_peak_ppr2 { input :
 			peak_caller = peak_caller_,
 			peak_type = peak_type_,
+			smooth_win = smooth_win,
 			custom_call_peak_py = custom_call_peak_py,
 			tas = flatten([select_all([pool_ta_pr2.ta_pooled]), chosen_ctl_ta_pooled]),
 			gensz = gensz_,
@@ -1144,7 +1150,6 @@ workflow cut_n_run {
 		annot_enrich_qcs = annot_enrich.annot_enrich_qc,
 		tss_enrich_qcs = tss_enrich.tss_enrich_qc,
 		tss_large_plots = tss_enrich.tss_large_plot,
-		roadmap_compare_plots = compare_signal_to_roadmap.roadmap_compare_plot,
 		fraglen_dist_plots = fraglen_stat_pe.fraglen_dist_plot,
 		fraglen_nucleosomal_qcs = fraglen_stat_pe.nucleosomal_qc,
 		gc_plots = gc_bias.gc_plot,
@@ -1866,31 +1871,6 @@ task gc_bias {
 	}
 }
 
-task compare_signal_to_roadmap {
-	File pval_bw
-	File reg2map_bed
-	File reg2map
-	File roadmap_meta
-
-	command {
-		python3 $(which encode_task_compare_signal_to_roadmap.py) \
-			${'--bigwig ' + pval_bw} \
-			${'--reg2map-bed ' + reg2map_bed} \
-			${'--reg2map ' + reg2map} \
-			${'--roadmap-meta ' + roadmap_meta}
-	}
-	output {
-		File roadmap_compare_plot = glob('*roadmap_compare_plot.png')[0]
-		File roadmap_compare_log = glob('*roadmap_compare.log')[0]
-	}
-	runtime {
-		cpu : 1
-		memory : '8000 MB'
-		time : 1
-		disks : 'local-disk 100 HDD'
-	}
-}
-
 # gather all outputs and generate 
 # - qc.html		: organized final HTML report
 # - qc.json		: all QCs
@@ -1939,7 +1919,6 @@ task qc_report {
 	Array[File?] annot_enrich_qcs
 	Array[File?] tss_enrich_qcs
 	Array[File?] tss_large_plots
-	Array[File?] roadmap_compare_plots
 	Array[File?] fraglen_dist_plots
 	Array[File?] fraglen_nucleosomal_qcs
 	Array[File?] gc_plots
@@ -2003,7 +1982,6 @@ task qc_report {
 			--annot-enrich-qcs ${sep='_:_' annot_enrich_qcs} \
 			--tss-enrich-qcs ${sep='_:_' tss_enrich_qcs} \
 			--tss-large-plots ${sep='_:_' tss_large_plots} \
-			--roadmap-compare-plots ${sep='_:_' roadmap_compare_plots} \
 			--fraglen-dist-plots ${sep='_:_' fraglen_dist_plots} \
 			--fraglen-nucleosomal-qcs ${sep='_:_' fraglen_nucleosomal_qcs} \
 			--gc-plots ${sep='_:_' gc_plots} \
