@@ -63,7 +63,7 @@ workflow cut_n_run {
 	Boolean align_only = false		# disable all post-align analyses (peak-calling, overlap, idr, ...)
 	Boolean true_rep_only = false 	# disable all analyses involving pseudo replicates (including overlap/idr)
 	Boolean enable_xcor = false 	# enable cross-corr analysis
-	Boolean enable_count_signal_track = false # generate count signal track
+	Boolean enable_count_signal_track = true # generate count signal track
 	Boolean enable_idr = true 		# enable IDR analysis on raw peaks
 	Boolean enable_preseq = false
 	Boolean enable_fraglen_stat = false
