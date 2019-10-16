@@ -1230,6 +1230,8 @@ task align {
 	String disks
 
 	command {
+		set -e
+
 		if [ '${aligner}' == 'bowtie2' ]; then
 			python3 $(which encode_task_bowtie2.py) \
 				${idx_tar} \
@@ -1539,6 +1541,8 @@ task call_peak {
 	String disks
 
 	command {
+		set -e
+
 		if [ '${peak_caller}' == 'macs2' ]; then
 			python2 $(which encode_task_macs2_cut_n_run.py) \
 				${sep=' ' tas} \
