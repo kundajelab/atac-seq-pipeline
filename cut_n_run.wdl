@@ -40,6 +40,7 @@ workflow cut_n_run {
 	File? blacklist 				# blacklist BED (peaks overlapping will be filtered out)
 	File? blacklist2 				# 2nd blacklist (will be merged with 1st one)
 	String? mito_chr_name
+	String? regex_bfilt_peak_chr_name
 	String? gensz 					# genome sizes (hs for human, mm for mouse or sum of 2nd col in chrsz)
 	File? tss 						# TSS BED file
 	File? dnase 					# open chromatin region BED file
@@ -95,11 +96,7 @@ workflow cut_n_run {
 	Float pval_thresh = 0.01		# p.value threshold for peak caller
 	Int smooth_win = 73				# size of smoothing window for peak caller
 	Float idr_thresh = 0.05			# IDR threshold
-	Boolean keep_irregular_chr_in_bfilt_peak = false 
-									# peaks with irregular chr name will not be filtered out
-									# 	in bfilt_peak (blacklist filtered peak) file
-									# 	(e.g. chr1_AABBCC, AABR07024382.1, ...)
-									# 	reg-ex pattern for "regular" chr name is chr[\dXY]+\b
+
 	# resources
 	#	these variables will be automatically ignored if they are not supported by platform
 	# 	"disks" is for cloud platforms (Google Cloud Platform, DNAnexus) only
@@ -107,7 +104,7 @@ workflow cut_n_run {
 	Int align_cpu = 4
 	Int align_mem_mb = 20000
 	Int align_time_hr = 48
-	String align_disks = 'local-disk 200 HDD'
+	String align_disks = 'local-disk 400 HDD'
 
 	Int filter_cpu = 2
 	Int filter_mem_mb = 20000
@@ -142,16 +139,18 @@ workflow cut_n_run {
 
 	Int preseq_mem_mb = 16000
 
+	String filter_picard_java_heap = '4G'
+	String preseq_picard_java_heap = '6G'
+	String fraglen_stat_picard_java_heap = '6G'
+	String gc_bias_picard_java_heap = '6G'
+
 	# input file definition
 	# supported types: fastq, bam, nodup_bam (or filtered bam), ta (tagAlign), peak
 	# 	pipeline can start from any type of inputs
 	# 	leave all other types undefined
 	# 	you can define up to 10 replicates
 
- 	# fastqs and adapters  	
-	# 	if auto_detect_adapter == true, undefined adapters will be detected/trimmed 
-	# 	otherwise, only defined adapters will be trimmed
-	# 	so you can selectively detect/trim adapters for a specific fastq
+ 	# fastqs
 	Array[File] fastqs_rep1_R1 = []		# FASTQs to be merged for rep1 R1
 	Array[File] fastqs_rep1_R2 = [] 	# do not define if single-ended
 	Array[File] fastqs_rep2_R1 = [] 	# do not define if unreplicated
@@ -195,17 +194,15 @@ workflow cut_n_run {
 	Array[File] ctl_fastqs_rep10_R2 = []
 
 	# other input types (bam, nodup_bam, ta). they are per replicate
-	Array[File?] merged_fastqs_R1 = []
-	Array[File?] merged_fastqs_R2 = [] 
-	Array[File?] ctl_merged_fastqs_R1 = []
-	Array[File?] ctl_merged_fastqs_R2 = [] 	
-
 	Array[File?] bams = []
 	Array[File?] ctl_bams = [] 		# [rep_id]
 	Array[File?] nodup_bams = [] 	# [rep_id]
 	Array[File?] ctl_nodup_bams = [] # [rep_id]
 	Array[File?] tas = []			# [rep_id]
 	Array[File?] ctl_tas = []		# [rep_id]
+
+	# optional read length array. used it pipeline starts from BAM or TA
+	Array[Int?] read_len = [] 		# [rep_id]. read length for each rep
 
 	# other input types (peak)
 	Array[File?] peaks = []			# per replicate
@@ -247,10 +244,13 @@ workflow cut_n_run {
 	File? blacklist2_ = if defined(blacklist2) then blacklist2
 		else read_genome_tsv.blacklist2		
 	# merge multiple blacklists
+	# two blacklists can have different number of columns (3 vs 6)
+	# so we limit merged blacklist's columns to 3
 	Array[File] blacklists = select_all([blacklist1_, blacklist2_])
 	if ( length(blacklists) > 1 ) {
 		call pool_ta as pool_blacklist { input:
 			tas = blacklists,
+			col = 3,
 		}
 	}
 	File? blacklist_ = if length(blacklists) > 1 then pool_blacklist.ta_pooled
@@ -258,6 +258,8 @@ workflow cut_n_run {
 		else blacklist2_
 	String? mito_chr_name_ = if defined(mito_chr_name) then mito_chr_name
 		else read_genome_tsv.mito_chr_name
+	String? regex_bfilt_peak_chr_name_ = if defined(regex_bfilt_peak_chr_name) then regex_bfilt_peak_chr_name
+		else read_genome_tsv.regex_bfilt_peak_chr_name
 	String? genome_name_ = if defined(genome_name) then genome_name
 		else if defined(read_genome_tsv.genome_name) then read_genome_tsv.genome_name
 		else basename(select_first([genome_tsv, ref_fa_, chrsz_, 'None']))
@@ -358,9 +360,7 @@ workflow cut_n_run {
 	# temporary variables to get number of replicates
 	# 	WDLic implementation of max(A,B,C,...)
 	Int num_rep_fastq = length(fastqs_R1)
-	Int num_rep_merged_fastq = if length(merged_fastqs_R1)<num_rep_fastq then num_rep_fastq
-		else length(merged_fastqs_R1)
-	Int num_rep_bam = if length(bams)<num_rep_merged_fastq then num_rep_merged_fastq
+	Int num_rep_bam = if length(bams)<num_rep_fastq then num_rep_fastq
 		else length(bams)
 	Int num_rep_nodup_bam = if length(nodup_bams)<num_rep_bam then num_rep_bam
 		else length(nodup_bams)
@@ -401,37 +401,18 @@ workflow cut_n_run {
 		Boolean? paired_end_ = if !defined(paired_end) && i<length(paired_ends) then paired_ends[i]
 			else paired_end
 
-		Boolean has_input_of_merge_fastq = i<length(fastqs_R1) && length(fastqs_R1[i])>0		
-		Boolean has_output_of_merge_fastq = i<length(merged_fastqs_R1) &&
-			defined(merged_fastqs_R1[i])
-		# skip if we already have output of this step
-		if ( has_input_of_merge_fastq && !has_output_of_merge_fastq ) {
-			call merge_fastq { input :
-				fastqs_R1 = fastqs_R1[i],
-				fastqs_R2 = fastqs_R2[i],
-				paired_end = paired_end_,
-			}
-		}
-		File? merged_fastq_R1_ = if has_output_of_merge_fastq
-			then merged_fastqs_R1[i]
-			else merge_fastq.merged_fastq_R1
-		File? merged_fastq_R2_ = if i<length(merged_fastqs_R2) &&
-			defined(merged_fastqs_R2[i])
-			then merged_fastqs_R2[i]
-			else merge_fastq.merged_fastq_R2
-
-		Boolean has_input_of_align = has_output_of_merge_fastq ||
-			defined(merge_fastq.merged_fastq_R1)
+		Boolean has_input_of_align = i<length(fastqs_R1) && length(fastqs_R1[i])>0
 		Boolean has_output_of_align = i<length(bams) && defined(bams[i])
 		if ( has_input_of_align && !has_output_of_align ) {
 			call align { input :
+				fastqs_R1 = fastqs_R1[i],
+				fastqs_R2 = fastqs_R2[i],
+				paired_end = paired_end_,
+
 				aligner = aligner_,
 				mito_chr_name = mito_chr_name_,
 				chrsz = chrsz_,
 				custom_align_py = custom_align_py,
-				fastq_R1 = merged_fastq_R1_,
-				fastq_R2 = merged_fastq_R2_,
-				paired_end = paired_end_,
 				multimapping = multimapping,
 				idx_tar = if aligner=='bwa' then bwa_idx_tar_
 					else if aligner=='bowtie2' then bowtie2_idx_tar_
@@ -452,13 +433,14 @@ workflow cut_n_run {
 			 defined(custom_aligner_mito_idx_tar_))
 		if ( has_input_of_align_mito ) {
 			call align as align_mito { input :
+				fastqs_R1 = fastqs_R1[i],
+				fastqs_R2 = fastqs_R2[i],
+				paired_end = paired_end_,
+
 				aligner = aligner_,
 				mito_chr_name = mito_chr_name_,
 				chrsz = chrsz_,
 				custom_align_py = custom_align_py,
-				fastq_R1 = merged_fastq_R1_,
-				fastq_R2 = merged_fastq_R2_,
-				paired_end = paired_end_,
 				multimapping = multimapping,
 				idx_tar = if aligner=='bwa' then bwa_mito_idx_tar_
 					else if aligner=='bowtie2' then bowtie2_mito_idx_tar_
@@ -495,6 +477,7 @@ workflow cut_n_run {
 
 				cpu = filter_cpu,
 				mem_mb = filter_mem_mb,
+				picard_java_heap = filter_picard_java_heap,
 				time_hr = filter_time_hr,
 				disks = filter_disks,
 			}
@@ -519,11 +502,40 @@ workflow cut_n_run {
 		}
 		File? ta_ = if has_output_of_bam2ta then tas[i] else bam2ta.ta
 
-		Boolean has_input_of_xcor = has_output_of_bam2ta || defined(bam2ta.ta)
+		Boolean has_input_of_xcor = has_output_of_align || defined(align.bam)
 		if ( has_input_of_xcor && enable_xcor ) {
+			call filter as filter_no_dedup { input :
+				bam = bam_,
+				paired_end = paired_end_,
+				dup_marker = dup_marker,
+				mapq_thresh = mapq_thresh_,
+				filter_chrs = filter_chrs,
+				chrsz = chrsz_,
+				no_dup_removal = true,
+				multimapping = multimapping,
+				mito_chr_name = mito_chr_name_,
+
+				cpu = filter_cpu,
+				mem_mb = filter_mem_mb,
+				picard_java_heap = filter_picard_java_heap,
+				time_hr = filter_time_hr,
+				disks = filter_disks,
+			}
+			call bam2ta as bam2ta_no_dedup { input :
+				bam = filter_no_dedup.nodup_bam,  # output name is nodup but it's not deduped
+				disable_tn5_shift = if pipeline_type=='atac' then false else true,
+				subsample = 0,
+				paired_end = paired_end_,
+				mito_chr_name = mito_chr_name_,
+
+				cpu = bam2ta_cpu,
+				mem_mb = bam2ta_mem_mb,
+				time_hr = bam2ta_time_hr,
+				disks = bam2ta_disks,
+			}
 			# subsample tagalign (non-mito) and cross-correlation analysis
 			call xcor { input :
-				ta = ta_,
+				ta = bam2ta_no_dedup.ta,
 				subsample = xcor_subsample_reads,
 				paired_end = paired_end_,
 				mito_chr_name = mito_chr_name_,
@@ -553,9 +565,13 @@ workflow cut_n_run {
 			}
 		}
 		# tasks factored out from ATAqC
-		if ( enable_tss_enrich && defined(nodup_bam_) && defined(tss_) && defined(align.read_len_log) ) {
+		Boolean has_input_of_tss_enrich = defined(nodup_bam_) && defined(tss_) && (
+			defined(align.read_len_log) || i<length(read_len) && defined(read_len[i]) )
+		if ( enable_tss_enrich && has_input_of_tss_enrich ) {
+			Int? read_len_ = if i<length(read_len) && defined(read_len[i]) then read_len[i]
+				else read_int(align.read_len_log)
 			call tss_enrich { input :
-				read_len_log = align.read_len_log,
+				read_len = read_len_,
 				nodup_bam = nodup_bam_,
 				tss = tss_,
 				chrsz = chrsz_,
@@ -564,6 +580,7 @@ workflow cut_n_run {
 		if ( enable_fraglen_stat && paired_end_ && defined(nodup_bam_) ) {
 			call fraglen_stat_pe { input :
 				nodup_bam = nodup_bam_,
+				picard_java_heap = fraglen_stat_picard_java_heap,				
 			}
 		}
 		if ( enable_preseq && defined(bam_) ) {
@@ -571,12 +588,14 @@ workflow cut_n_run {
 				bam = bam_,
 				paired_end = paired_end_,
 				mem_mb = preseq_mem_mb,
+				picard_java_heap = preseq_picard_java_heap,
 			}
 		}
 		if ( enable_gc_bias && defined(nodup_bam_) && defined(ref_fa_) ) {
 			call gc_bias { input :
 				nodup_bam = nodup_bam_,
 				ref_fa = ref_fa_,
+				picard_java_heap = gc_bias_picard_java_heap,
 			}
 		}
 		if ( enable_annot_enrich && defined(ta_) && defined(blacklist_) && defined(dnase_) && defined(prom_) && defined(enh_) ) {
@@ -598,38 +617,23 @@ workflow cut_n_run {
 			else if defined(ctl_paired_end) then ctl_paired_end
 			else paired_end
 
-		Boolean has_input_of_merge_fastq_ctl = i<length(ctl_fastqs_R1) && length(ctl_fastqs_R1[i])>0
-		Boolean has_output_of_merge_fastq_ctl = i<length(ctl_merged_fastqs_R1) &&
-			defined(ctl_merged_fastqs_R1[i])
-		if ( has_input_of_merge_fastq_ctl && !has_output_of_merge_fastq_ctl ) {
-			# merge fastqs
-			call merge_fastq as merge_fastq_ctl { input :
-				fastqs_R1 = ctl_fastqs_R1[i],
-				fastqs_R2 = ctl_fastqs_R2[i],
-				paired_end = ctl_paired_end_,
-			}
-		}
-		File? ctl_merged_fastq_R1_ = if has_output_of_merge_fastq_ctl then ctl_merged_fastqs_R1[i]
-			else merge_fastq_ctl.merged_fastq_R1
-		File? ctl_merged_fastq_R2_ = if i<length(ctl_merged_fastqs_R2) &&
-			defined(ctl_merged_fastqs_R2[i]) then ctl_merged_fastqs_R2[i]
-			else merge_fastq_ctl.merged_fastq_R2
-
-		Boolean has_input_of_align_ctl = has_output_of_merge_fastq_ctl || defined(merge_fastq_ctl.merged_fastq_R1)
+		Boolean has_input_of_align_ctl = i<length(ctl_fastqs_R1) && length(ctl_fastqs_R1[i])>0
 		Boolean has_output_of_align_ctl = i<length(ctl_bams) && defined(ctl_bams[i])
 		if ( has_input_of_align_ctl && !has_output_of_align_ctl ) {
 			call align as align_ctl { input :
+				fastqs_R1 = ctl_fastqs_R1[i],
+				fastqs_R2 = ctl_fastqs_R2[i],
+				paired_end = ctl_paired_end_,
+
 				aligner = aligner_,
 				mito_chr_name = mito_chr_name_,
 				chrsz = chrsz_,
 				custom_align_py = custom_align_py,
+				multimapping = multimapping,
 				idx_tar = if aligner=='bwa' then bwa_idx_tar_
 					else if aligner=='bowtie2' then bowtie2_idx_tar_
 					else custom_aligner_idx_tar_,
-				fastq_R1 = ctl_merged_fastq_R1_,
-				fastq_R2 = ctl_merged_fastq_R2_,
-				paired_end = ctl_paired_end_,
-				multimapping = multimapping,
+				# resource
 				cpu = align_cpu,
 				mem_mb = align_mem_mb,
 				time_hr = align_time_hr,
@@ -640,7 +644,6 @@ workflow cut_n_run {
 
 		Boolean has_input_of_filter_ctl = has_output_of_align_ctl || defined(align_ctl.bam)
 		Boolean has_output_of_filter_ctl = i<length(ctl_nodup_bams) && defined(ctl_nodup_bams[i])
-		# skip if we already have output of this step
 		if ( has_input_of_filter_ctl && !has_output_of_filter_ctl ) {
 			call filter as filter_ctl { input :
 				bam = ctl_bam_,
@@ -783,7 +786,7 @@ workflow cut_n_run {
 				cap_num_peak = cap_num_peak_,
 				pval_thresh = pval_thresh,
 				blacklist = blacklist_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 
 				cpu = call_peak_cpu,
 				mem_mb = call_peak_mem_mb,
@@ -824,7 +827,7 @@ workflow cut_n_run {
 				cap_num_peak = cap_num_peak_,
 				pval_thresh = pval_thresh,
 				blacklist = blacklist_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 	
 				cpu = call_peak_cpu,
 				mem_mb = call_peak_mem_mb,
@@ -850,7 +853,7 @@ workflow cut_n_run {
 				cap_num_peak = cap_num_peak_,
 				pval_thresh = pval_thresh,
 				blacklist = blacklist_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 
 				cpu = call_peak_cpu,
 				mem_mb = call_peak_mem_mb,
@@ -878,7 +881,7 @@ workflow cut_n_run {
 			cap_num_peak = cap_num_peak_,
 			pval_thresh = pval_thresh,
 			blacklist = blacklist_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 
 			cpu = call_peak_cpu,
 			mem_mb = call_peak_mem_mb,
@@ -919,7 +922,7 @@ workflow cut_n_run {
 			cap_num_peak = cap_num_peak_,
 			pval_thresh = pval_thresh,
 			blacklist = blacklist_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 
 			cpu = call_peak_cpu,
 			mem_mb = call_peak_mem_mb,
@@ -945,7 +948,7 @@ workflow cut_n_run {
 			cap_num_peak = cap_num_peak_,
 			pval_thresh = pval_thresh,
 			blacklist = blacklist_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 
 			cpu = call_peak_cpu,
 			mem_mb = call_peak_mem_mb,
@@ -978,7 +981,7 @@ workflow cut_n_run {
 				peak_type = peak_type_,
 				blacklist = blacklist_,
 				chrsz = chrsz_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = pool_ta.ta_pooled,
 			}
 		}
@@ -999,7 +1002,7 @@ workflow cut_n_run {
 				rank = idr_rank_,
 				blacklist = blacklist_,
 				chrsz = chrsz_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = pool_ta.ta_pooled,
 			}
 		}
@@ -1016,7 +1019,7 @@ workflow cut_n_run {
 				peak_type = peak_type_,
 				blacklist = blacklist_,
 				chrsz = chrsz_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = ta_[i],
 			}
 		}
@@ -1035,7 +1038,7 @@ workflow cut_n_run {
 				rank = idr_rank_,
 				blacklist = blacklist_,
 				chrsz = chrsz_,
-				keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = ta_[i],
 			}
 		}
@@ -1051,7 +1054,7 @@ workflow cut_n_run {
 			peak_type = peak_type_,
 			blacklist = blacklist_,
 			chrsz = chrsz_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 			ta = pool_ta.ta_pooled,
 		}
 	}
@@ -1068,7 +1071,7 @@ workflow cut_n_run {
 			rank = idr_rank_,
 			blacklist = blacklist_,
 			chrsz = chrsz_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 			ta = pool_ta.ta_pooled,
 		}
 	}
@@ -1083,7 +1086,6 @@ workflow cut_n_run {
 			peak_ppr = overlap_ppr.bfilt_overlap_peak,
 			peak_type = peak_type_,
 			chrsz = chrsz_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
 		}
 	}
 
@@ -1096,7 +1098,6 @@ workflow cut_n_run {
 			peak_ppr = idr_ppr.bfilt_idr_peak,
 			peak_type = peak_type_,
 			chrsz = chrsz_,
-			keep_irregular_chr_in_bfilt_peak = keep_irregular_chr_in_bfilt_peak,
 		}
 	}
 
@@ -1114,7 +1115,8 @@ workflow cut_n_run {
 		cap_num_peak = cap_num_peak_,
 		idr_thresh = idr_thresh,
 		pval_thresh = pval_thresh,
-		
+		xcor_subsample_reads = xcor_subsample_reads,
+
 		samstat_qcs = align.samstat_qc,
 		nodup_samstat_qcs = filter.samstat_qc,
 
@@ -1176,83 +1178,73 @@ workflow cut_n_run {
 	}
 }
 
-task merge_fastq { # merge trimmed fastqs
+task align {
 	Array[File] fastqs_R1 		# [merge_id]
 	Array[File] fastqs_R2
+
 	Boolean paired_end
 
-	File? null_f
-	Array[Array[File]] tmp_fastqs = if paired_end then transpose([fastqs_R1, fastqs_R2])
-				else transpose([fastqs_R1])
-	command {
-		# check if pipeline dependencies can be found
-		if [[ -z "$(which encode_task_merge_fastq.py 2> /dev/null || true)" ]]
-		then
-		  echo -e "\n* Error: pipeline dependencies not found." 1>&2
-		  echo 'Conda users: Did you install Conda and environment correctly (scripts/install_conda_env.sh)?' 1>&2
-		  echo 'GCP/AWS/Docker users: Did you add --docker flag to Caper command line arg?' 1>&2
-		  echo 'Singularity users: Did you add --singularity flag to Caper command line arg?' 1>&2
-		  echo -e "\n" 1>&2
-		  EXCEPTION_RAISED
-		fi
-
-		python3 $(which encode_task_merge_fastq.py) \
-			${write_tsv(tmp_fastqs)} \
-			${if paired_end then '--paired-end' else ''} \
-			${'--nth ' + 1}
-	}
-	output {
-		File merged_fastq_R1 = glob('R1/*.fastq.gz')[0]
-		File? merged_fastq_R2 = if paired_end then glob('R2/*.fastq.gz')[0] else null_f
-	}
-	runtime {
-		cpu : 1
-		memory : '8000 MB'
-		time : 2
-		disks : 'local-disk 100 HDD'
-	}
-}
-
-task align {
+	# for task align
 	String aligner
 	String mito_chr_name
 	File chrsz			# 2-col chromosome sizes file
 	File? custom_align_py
-	File idx_tar		# reference index tar
-	File? fastq_R1 		# [read_end_id]
-	File? fastq_R2
-	Boolean paired_end
+	File idx_tar		# reference index tar or tar.gz
 	Int multimapping
 
+	# resource
 	Int cpu
 	Int mem_mb
 	Int time_hr
 	String disks
 
+	# tmp vars for task trim_adapter
+	Array[Array[File]] tmp_fastqs = if paired_end then transpose([fastqs_R1, fastqs_R2])
+				else transpose([fastqs_R1])
 	command {
 		set -e
 
+		# check if pipeline dependencies can be found
+		if [[ -z "$(which encode_task_merge_fastq.py 2> /dev/null || true)" ]]
+		then
+		  echo -e "\n* Error: pipeline dependencies not found." 1>&2
+		  echo 'Conda users: Did you activate Conda environment (conda activate encode-chip-seq-pipeline)?' 1>&2
+		  echo '    Or did you install Conda and environment correctly (bash scripts/install_conda_env.sh)?' 1>&2
+		  echo 'GCP/AWS/Docker users: Did you add --docker flag to Caper command line arg?' 1>&2
+		  echo 'Singularity users: Did you add --singularity flag to Caper command line arg?' 1>&2
+		  echo -e "\n" 1>&2
+		  exit 3
+		fi
+		python3 $(which encode_task_merge_fastq.py) \
+			${write_tsv(tmp_fastqs)} \
+			${if paired_end then '--paired-end' else ''} \
+			${'--nth ' + 1}
+
+		# align on trimmed/merged fastqs
 		if [ '${aligner}' == 'bowtie2' ]; then
 			python3 $(which encode_task_bowtie2.py) \
 				${idx_tar} \
-				${fastq_R1} ${fastq_R2} \
+				R1/*.fastq.gz \
+				${if paired_end then 'R2/*.fastq.gz' else ''} \
 				${if paired_end then '--paired-end' else ''} \
 				${'--multimapping ' + multimapping} \
 				${'--nth ' + cpu}
 		else
 			python3 ${custom_align_py} \
 				${idx_tar} \
-				${fastq_R1} ${fastq_R2} \
+				R1/*.fastq.gz \
+				${if paired_end then 'R2/*.fastq.gz' else ''} \
 				${if paired_end then '--paired-end' else ''} \
 				${'--multimapping ' + multimapping} \
 				${'--nth ' + cpu}
 		fi
 
 		python3 $(which encode_task_post_align.py) \
-			${fastq_R1} $(ls *.bam) \
+			R1/*.fastq.gz $(ls *.bam) \
 			${'--mito-chr-name ' + mito_chr_name} \
 			${'--chrsz ' + chrsz} \
 			${'--nth ' + cpu}
+		rm -rf R1 R2
 	}
 	output {
 		File bam = glob('*.bam')[0]
@@ -1300,8 +1292,10 @@ task filter {
 	File chrsz					# 2-col chromosome sizes file
 	Boolean no_dup_removal 		# no dupe reads removal when filtering BAM
 	String mito_chr_name
+
 	Int cpu
 	Int mem_mb
+	String picard_java_heap
 	Int time_hr
 	String disks
 
@@ -1316,7 +1310,8 @@ task filter {
 			${'--chrsz ' + chrsz} \
 			${if no_dup_removal then '--no-dup-removal' else ''} \
 			${'--mito-chr-name ' + mito_chr_name} \
-			${'--nth ' + cpu}
+			${'--nth ' + cpu} \
+			${'--picard-java-heap ' + picard_java_heap}
 	}
 	output {
 		File nodup_bam = glob('*.bam')[0]
@@ -1389,12 +1384,13 @@ task spr { # make two self pseudo replicates
 }
 
 task pool_ta {
-	# input variables
 	Array[File?] tas 	# TAG-ALIGNs to be merged
+	Int? col 			# number of columns in pooled TA
 
 	command {
 		python3 $(which encode_task_pool_ta.py) \
-			${sep=' ' tas}
+			${sep=' ' tas} \
+			${'--col ' + col}
 	}
 	output {
 		File ta_pooled = glob('*.tagAlign.gz')[0]
@@ -1533,7 +1529,7 @@ task call_peak {
 	Float pval_thresh  	# p.value threshold
 	Int smooth_win 		# size of smoothing window
 	File? blacklist 	# blacklist BED to filter raw peaks
-	Boolean	keep_irregular_chr_in_bfilt_peak
+	String? regex_bfilt_peak_chr_name
 
 	Int cpu
 	Int mem_mb
@@ -1564,7 +1560,7 @@ task call_peak {
 		python3 $(which encode_task_post_call_peak_cut_n_run.py) \
 			$(ls *Peak.gz) \
 			${'--ta ' + tas[0]} \
-			${if keep_irregular_chr_in_bfilt_peak then '--keep-irregular-chr' else ''} \
+			${'--regex-bfilt-peak-chr-name \'' + regex_bfilt_peak_chr_name + '\''} \
 			${'--chrsz ' + chrsz} \
 			${'--peak-type ' + peak_type} \
 			${'--blacklist ' + blacklist}
@@ -1629,7 +1625,7 @@ task idr {
 	File peak_pooled
 	Float idr_thresh
 	File? blacklist 	# blacklist BED to filter raw peaks
-	Boolean	keep_irregular_chr_in_bfilt_peak
+	String regex_bfilt_peak_chr_name
 	# parameters to compute FRiP
 	File? ta			# to calculate FRiP
 	File chrsz			# 2-col chromosome sizes file
@@ -1647,7 +1643,7 @@ task idr {
 			--idr-rank ${rank} \
 			${'--chrsz ' + chrsz} \
 			${'--blacklist '+ blacklist} \
-			${if keep_irregular_chr_in_bfilt_peak then '--keep-irregular-chr' else ''} \
+			${'--regex-bfilt-peak-chr-name \'' + regex_bfilt_peak_chr_name + '\''} \
 			${'--ta ' + ta}
 	}
 	output {
@@ -1675,7 +1671,7 @@ task overlap {
 	File peak2
 	File peak_pooled
 	File? blacklist 	# blacklist BED to filter raw peaks
-	Boolean	keep_irregular_chr_in_bfilt_peak
+	String regex_bfilt_peak_chr_name
 	File? ta		# to calculate FRiP
 	File chrsz			# 2-col chromosome sizes file
 	String peak_type
@@ -1690,7 +1686,7 @@ task overlap {
 			${'--chrsz ' + chrsz} \
 			${'--blacklist '+ blacklist} \
 			--nonamecheck \
-			${if keep_irregular_chr_in_bfilt_peak then '--keep-irregular-chr' else ''} \
+			${'--regex-bfilt-peak-chr-name \'' + regex_bfilt_peak_chr_name + '\''} \
 			${'--ta ' + ta}
 	}
 	output {
@@ -1719,7 +1715,6 @@ task reproducibility {
 	File? peak_ppr			# Peak file from pooled pseudo replicate.
 	String peak_type
 	File chrsz			# 2-col chromosome sizes file
-	Boolean	keep_irregular_chr_in_bfilt_peak
 
 	command {
 		python3 $(which encode_task_reproducibility.py) \
@@ -1728,7 +1723,6 @@ task reproducibility {
 			${'--peak-ppr '+ peak_ppr} \
 			--prefix ${prefix} \
 			${'--peak-type ' + peak_type} \
-			${if keep_irregular_chr_in_bfilt_peak then '--keep-irregular-chr' else ''} \
 			${'--chrsz ' + chrsz}
 	}
 	output {
@@ -1759,12 +1753,14 @@ task preseq {
 	Boolean paired_end
 
 	Int mem_mb
+	String picard_java_heap	
 
 	File? null_f
 	command {
 		python3 $(which encode_task_preseq.py) \
 			${if paired_end then '--paired-end' else ''} \
-			${'--bam ' + bam}
+			${'--bam ' + bam} \
+			${'--picard-java-heap ' + picard_java_heap}
 	}
 	output {
 		File? picard_est_lib_size_qc = if paired_end then 
@@ -1808,14 +1804,14 @@ task annot_enrich {
 }
 
 task tss_enrich {
-	File read_len_log
+	Int? read_len
 	File nodup_bam
 	File tss
 	File chrsz
 
 	command {
 		python2 $(which encode_task_tss_enrich.py) \
-			${'--read-len-log ' + read_len_log} \
+			${'--read-len ' + read_len} \
 			${'--nodup-bam ' + nodup_bam} \
 			${'--chrsz ' + chrsz} \
 			${'--tss ' + tss}
@@ -1838,9 +1834,12 @@ task fraglen_stat_pe {
 	# for PE only
 	File nodup_bam
 
+	String picard_java_heap
+
 	command {
 		python3 $(which encode_task_fraglen_stat_pe.py) \
-			${'--nodup-bam ' + nodup_bam}
+			${'--nodup-bam ' + nodup_bam} \
+			${'--picard-java-heap ' + picard_java_heap}
 	}
 	output {
 		File nucleosomal_qc = glob('*nucleosomal.qc')[0]
@@ -1858,10 +1857,13 @@ task gc_bias {
 	File nodup_bam
 	File ref_fa
 
+	String picard_java_heap
+
 	command {
 		python3 $(which encode_task_gc_bias.py) \
 			${'--nodup-bam ' + nodup_bam} \
-			${'--ref-fa ' + ref_fa}
+			${'--ref-fa ' + ref_fa} \
+			${'--picard-java-heap ' + picard_java_heap}
 	}
 	output {
 		File gc_plot = glob('*.gc_plot.png')[0]
@@ -1892,6 +1894,7 @@ task qc_report {
 	Int cap_num_peak
 	Float idr_thresh
 	Float pval_thresh
+	Int xcor_subsample_reads
 	# QCs
 	Array[File?] frac_mito_qcs
 	Array[File?] samstat_qcs
@@ -1957,6 +1960,7 @@ task qc_report {
 			${'--cap-num-peak ' + cap_num_peak} \
 			--idr-thresh ${idr_thresh} \
 			--pval-thresh ${pval_thresh} \
+			--xcor-subsample-reads ${xcor_subsample_reads} \
 			--frac-mito-qcs ${sep='_:_' frac_mito_qcs} \
 			--samstat-qcs ${sep='_:_' samstat_qcs} \
 			--nodup-samstat-qcs ${sep='_:_' nodup_samstat_qcs} \
@@ -2031,6 +2035,7 @@ task read_genome_tsv {
 		touch tss tss_enrich # for backward compatibility
 		touch dnase prom enh reg2map reg2map_bed roadmap_meta
 		touch mito_chr_name
+		touch regex_bfilt_peak_chr_name
 
 		python <<CODE
 		import os
@@ -2058,6 +2063,8 @@ task read_genome_tsv {
 		String? blacklist = if size('blacklist')==0 then null_s else read_string('blacklist')
 		String? blacklist2 = if size('blacklist2')==0 then null_s else read_string('blacklist2')
 		String? mito_chr_name = if size('mito_chr_name')==0 then null_s else read_string('mito_chr_name')
+		String? regex_bfilt_peak_chr_name = if size('regex_bfilt_peak_chr_name')==0 then 'chr[\\dXY]+'
+			else read_string('regex_bfilt_peak_chr_name')
 		# optional data
 		String? tss = if size('tss')!=0 then read_string('tss')
 			else if size('tss_enrich')!=0 then read_string('tss_enrich') else null_s
@@ -2081,7 +2088,7 @@ task raise_exception {
 	String msg
 	command {
 		echo -e "\n* Error: ${msg}\n" >&2
-		EXCEPTION_RAISED
+		exit 2
 	}
 	output {
 		String error_msg = '${msg}'

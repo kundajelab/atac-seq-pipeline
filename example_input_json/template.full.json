@@ -24,6 +24,8 @@
     "cut_n_run.multimapping" : 0,
     "cut_n_run.filter_chrs" : ["chrM", "MT"],
 
+    "cut_n_run.read_len" : [],
+
     "cut_n_run.mapq_thresh" : 30,
     "cut_n_run.dup_marker" : "picard",
     "cut_n_run.no_dup_removal" : false,
@@ -40,7 +42,6 @@
 
     "cut_n_run.enable_xcor" : false,
     "cut_n_run.enable_count_signal_track" : false,
-    "cut_n_run.keep_irregular_chr_in_bfilt_peak" : false,        
 
     "cut_n_run.always_use_pooled_ctl": false,
     "cut_n_run.ctl_depth_ratio": 1.2,
@@ -53,7 +54,7 @@
     "cut_n_run.align_cpu" : 4,
     "cut_n_run.align_mem_mb" : 20000,
     "cut_n_run.align_time_hr" : 48,
-    "cut_n_run.align_disks" : "local-disk 200 HDD",
+    "cut_n_run.align_disks" : "local-disk 400 HDD",
 
     "cut_n_run.filter_cpu" : 2,
     "cut_n_run.filter_mem_mb" : 20000,
@@ -80,5 +81,10 @@
     "cut_n_run.macs2_signal_track_time_hr" : 24,
     "cut_n_run.macs2_signal_track_disks" : "local-disk 200 HDD",
 
-    "cut_n_run.preseq_mem_mb" : 16000
+    "cut_n_run.preseq_mem_mb" : 16000,
+
+    "cut_n_run.filter_picard_java_heap" : "4G",
+    "cut_n_run.preseq_picard_java_heap" : "6G",
+    "cut_n_run.fraglen_stat_picard_java_heap" : "6G",
+    "cut_n_run.gc_bias_picard_java_heap" : "6G"
 }

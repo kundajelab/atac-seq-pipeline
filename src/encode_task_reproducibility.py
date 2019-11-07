@@ -8,7 +8,7 @@ import os
 import argparse
 from encode_lib_common import (
     copy_f_to_f, get_num_lines, infer_n_from_nC2,
-    infer_pair_label_from_idx, log, make_soft_link, mkdir_p)
+    infer_pair_label_from_idx, log, mkdir_p)
 from encode_lib_genomic import (
     peak_to_bigbed, peak_to_hammock, get_region_size_metrics,
     get_num_peaks)
@@ -34,8 +34,6 @@ def parse_arguments():
                         help='Peak file type.')
     parser.add_argument('--chrsz', type=str,
                         help='2-col chromosome sizes file.')
-    parser.add_argument('--keep-irregular-chr', action="store_true",
-                        help='Keep reads with non-canonical chromosome names.')
     parser.add_argument('--prefix', type=str,
                         help='Basename prefix for reproducibility QC file.')
     parser.add_argument('--out-dir', default='', type=str,
@@ -82,7 +80,7 @@ def main():
         label_tr = infer_pair_label_from_idx(num_rep, Nt_idx)
 
         conservative_set = label_tr
-        conservative_peak = make_soft_link(args.peaks[Nt_idx], args.out_dir)
+        conservative_peak = args.peaks[Nt_idx]
         N_conservative = Nt
         if Nt > Np:
             optimal_set = conservative_set
@@ -90,7 +88,7 @@ def main():
             N_optimal = N_conservative
         else:
             optimal_set = "pooled-pr1_vs_pooled-pr2"
-            optimal_peak = make_soft_link(args.peak_ppr, args.out_dir)
+            optimal_peak = args.peak_ppr
             N_optimal = Np
     else:
         # single replicate case
@@ -102,7 +100,7 @@ def main():
         self_consistency_ratio = 1.0
 
         conservative_set = 'rep1-pr1_vs_rep1-pr2'
-        conservative_peak = make_soft_link(args.peaks_pr[0], args.out_dir)
+        conservative_peak = args.peaks_pr[0]
         N_conservative = N[0]
         optimal_set = conservative_set
         optimal_peak = conservative_peak
@@ -129,15 +127,15 @@ def main():
     if args.chrsz:
         log.info('Converting peak to bigbed...')
         peak_to_bigbed(optimal_peak_file, args.peak_type,
-                       args.chrsz, args.keep_irregular_chr, args.out_dir)
+                       args.chrsz, args.out_dir)
         peak_to_bigbed(conservative_peak_file, args.peak_type,
-                       args.chrsz, args.keep_irregular_chr, args.out_dir)
+                       args.chrsz, args.out_dir)
 
         log.info('Converting peak to hammock...')
         peak_to_hammock(optimal_peak_file,
-                        args.keep_irregular_chr, args.out_dir)
+                        args.out_dir)
         peak_to_hammock(conservative_peak_file,
-                        args.keep_irregular_chr, args.out_dir)
+                        args.out_dir)
 
     log.info('Writing reproducibility QC log...')
     if args.prefix:

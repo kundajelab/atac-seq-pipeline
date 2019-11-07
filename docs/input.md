@@ -37,6 +37,8 @@ Parameter|Type|Description
 `atac.blacklist`| File | 3-col BED file. Peaks overlapping these regions will be filtered out
 `atac.gensz`| String | MACS2's genome sizes (hs for human, mm for mouse or sum of 2nd col in chrsz)
 `atac.mito_chr_name`| String | Name of mitochondrial chromosome (e.g. chrM)
+`atac.regex_bfilt_peak_chr_name`| String | Perl style reg-ex to keep peaks on selected chromosomes only matching with this pattern (default: `chr[\dXY]+`. This will keep chr1, chr2, ... chrX and chrY in `.bfilt.` peaks file. chrM is not included here)
+
 
 Additional annotated genome data:
 
@@ -54,14 +56,14 @@ We currently provide TSV files for 4 genomes as shown in the below table. `GENOM
 
 Platform|Path/URI
 -|-
-Google Cloud Platform|`gs://encode-pipeline-genome-data/[GENOME]_gcp.tsv`
-Stanford Sherlock|`/home/groups/cherry/encode/pipeline_genome_data/[GENOME]_sherlock.tsv`
-Stanford SCG|`/reference/ENCODE/pipeline_genome_data/[GENOME]_scg.tsv`
+Google Cloud Platform|`gs://encode-pipeline-genome-data/genome_tsv/v1/[GENOME]_gcp.tsv`
+Stanford Sherlock|`/home/groups/cherry/encode/pipeline_genome_data/genome_tsv/v1/[GENOME]_sherlock.tsv`
+Stanford SCG|`/reference/ENCODE/pipeline_genome_data/genome_tsv/v1/[GENOME]_scg.tsv`
 Local/SLURM/SGE|You need to [build](build_genome_database.md) or [download]() a genome database]. 
-DNAnexus (CLI)|`dx://project-BKpvFg00VBPV975PgJ6Q03v6:pipeline-genome-data/[GENOME]_dx.tsv`
-DNAnexus (CLI, Azure)|`dx://project-F6K911Q9xyfgJ36JFzv03Z5J:pipeline-genome-data/[GENOME]_dx_azure.tsv`
-DNAnexus (Web)|Choose `[GENOME]_dx.tsv` from [here](https://platform.DNAnexus.com/projects/BKpvFg00VBPV975PgJ6Q03v6/data/pipeline-genome-data)
-DNAnexus (Web, Azure)|Choose `[GENOME]_dx.tsv` from [here](https://platform.DNAnexus.com/projects/F6K911Q9xyfgJ36JFzv03Z5J/data/pipeline-genome-data)
+DNAnexus (CLI)|`dx://project-BKpvFg00VBPV975PgJ6Q03v6:pipeline-genome-data/genome_tsv/v1/[GENOME]_dx.tsv`
+DNAnexus (CLI, Azure)|`dx://project-F6K911Q9xyfgJ36JFzv03Z5J:pipeline-genome-data/genome_tsv/v1/[GENOME]_dx_azure.tsv`
+DNAnexus (Web)|Choose `[GENOME]_dx.tsv` from [here](https://platform.DNAnexus.com/projects/BKpvFg00VBPV975PgJ6Q03v6/data/pipeline-genome-data/genome_tsv/v1)
+DNAnexus (Web, Azure)|Choose `[GENOME]_dx.tsv` from [here](https://platform.DNAnexus.com/projects/F6K911Q9xyfgJ36JFzv03Z5J/data/pipeline-genome-data/genome_tsv/v1)
 
 Additional information about each genome:
 
@@ -114,7 +116,7 @@ You can mix up different data types for individual replicate. For example, pipel
     "atac.fastqs_rep1_R1" : ["rep1.fastq.gz"],
     "atac.fastqs_rep3_R1" : ["rep3.fastq.gz"],
     "atac.bams" : [null, "rep2.bam", null, null, null],
-    "atac.nodup_bams" : [null, "rep2.bam", null, "rep4.nodup.bam", null],
+    "atac.nodup_bams" : [null, null, null, "rep4.nodup.bam", null],
     "atac.tas" : [null, null, null, null, "rep5.tagAlign.gz"]
 }
 ```
@@ -176,13 +178,20 @@ Parameter|Default|Description
 ---------|-------|-----------
 `atac.enable_xcor` | false | Enable cross-correlation analysis
 `atac.enable_count_signal_track` | false | Enable count signal track generation
-`atac.keep_irregular_chr_in_bfilt_peak` | false | Keep irregular chromosome names. Use this for custom genomes without canonical chromosome names (chr1, chrX, ...)
 `atac.enable_preseq` | false | Enable preseq, which performs a yield prediction for reads
 `atac.enable_jsd` | true | Enable deeptools fingerprint (JS distance)
 `atac.enable_gc_bias` | true | Enable GC bias computation
 `atac.enable_tss_enrich` | true | Enable TSS enrichment computation
 `atac.enable_annot_enrich` | true | Enable Annotated region enrichment computation
 `atac.enable_compare_to_roadmap` | false | Enable comparing signals to epigenome roadmap
+
+## Optional parameter for TSS enrichment
+
+Our pipeline automatically estimates read length from FASTQs, but `atac.read_len` will override those estimated ones. You need to define `atac.read_len` if you start from BAMs and want to get a TSS enrichment plot.
+
+Parameter|Type | Description
+---------|-----|-----------
+`atac.read_len` | `Array[Int]` | Read length for each replicate. 
 
 ## Other optional parameters
 
@@ -200,24 +209,17 @@ Resources defined here are PER REPLICATE. Therefore, total number of cores will 
 
 Parameter|Default
 ---------|-------
-`atac.trim_adapter_cpu` | 2
-`atac.trim_adapter_mem_mb` | 12000
-`atac.trim_adapter_time_hr` | 24
-`atac.trim_adapter_disks` | `local-disk 100 HDD`
-
-Parameter|Default
----------|-------
 `atac.align_cpu` | 4
 `atac.align_mem_mb` | 20000
 `atac.align_time_hr` | 48
-`atac.align_disks` | `local-disk 100 HDD`
+`atac.align_disks` | `local-disk 400 HDD`
 
 Parameter|Default
 ---------|-------
 `atac.filter_cpu` | 2
 `atac.filter_mem_mb` | 20000
 `atac.filter_time_hr` | 24
-`atac.filter_disks` | `local-disk 100 HDD`
+`atac.filter_disks` | `local-disk 400 HDD`
 
 Parameter|Default
 ---------|-------
@@ -235,7 +237,7 @@ Parameter|Default
 `atac.jsd_cpu` | 2
 `atac.jsd_mem_mb` | 12000
 `atac.jsd_time_hr` | 6
-`atac.jsd_disks` | `local-disk 100 HDD`
+`atac.jsd_disks` | `local-disk 200 HDD`
 
 Parameter|Default
 ---------|-------
@@ -249,17 +251,29 @@ Parameter|Default
 `atac.call_peak_cpu` | 1
 `atac.call_peak_mem_mb` | 16000
 `atac.call_peak_time_hr` | 24
-`atac.call_peak_disks` | `local-disk 100 HDD`
+`atac.call_peak_disks` | `local-disk 200 HDD`
 
 Parameter|Default
 ---------|-------
 `atac.macs2_signal_track_mem_mb` | 16000
 `atac.macs2_signal_track_time_hr` | 24
-`atac.macs2_signal_track_disks` | `local-disk 100 HDD`
+`atac.macs2_signal_track_disks` | `local-disk 200 HDD`
 
 Parameter|Default
 ---------|-------
 `atac.preseq_mem_mb` | 16000
+
+> **IMPORTANT**: If you see memory Java errors, check the following resource parameters.
+
+There are special parameters to control maximum Java heap memory (e.g. `java -Xmx4G`) for Picard tools. They are strings including size units. Such string will be directly appended to Java's parameter `-Xmx`.
+
+Parameter|Default
+---------|-------
+`atac.filter_picard_java_heap` | `4G`
+`atac.preseq_picard_java_heap` | `6G`
+`atac.fraglen_stat_picard_java_heap` | `6G`
+`atac.gc_bias_picard_java_heap` | `6G`
+
 
 ## How to use a custom aligner
 
