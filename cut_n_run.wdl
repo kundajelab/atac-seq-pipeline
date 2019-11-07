@@ -372,9 +372,7 @@ workflow cut_n_run {
 
 	# temporary variables to get number of controls
 	Int num_ctl_fastq = length(ctl_fastqs_R1)
-	Int num_ctl_merged_fastq = if length(ctl_merged_fastqs_R1)<num_ctl_fastq then num_ctl_fastq
-		else length(ctl_merged_fastqs_R1)
-	Int num_ctl_bam = if length(ctl_bams)<num_ctl_merged_fastq then num_ctl_merged_fastq
+	Int num_ctl_bam = if length(ctl_bams)<num_ctl_fastq then num_ctl_fastq
 		else length(ctl_bams)
 	Int num_ctl_nodup_bam = if length(ctl_nodup_bams)<num_ctl_bam then num_ctl_bam
 		else length(ctl_nodup_bams)
@@ -658,6 +656,7 @@ workflow cut_n_run {
 
 				cpu = filter_cpu,
 				mem_mb = filter_mem_mb,
+				picard_java_heap = filter_picard_java_heap,
 				time_hr = filter_time_hr,
 				disks = filter_disks,
 			}
