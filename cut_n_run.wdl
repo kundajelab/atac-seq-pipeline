@@ -2124,7 +2124,7 @@ task call_peak {
 				${'--cap-num-peak ' + cap_num_peak} \
 				${'--pval-thresh '+ pval_thresh} \
 				${'--smooth-win '+ smooth_win}
-		if [ '${peak_caller}' == 'seacr' ]; then
+		elif [ '${peak_caller}' == 'seacr' ]; then
 			python3 $(which encode_task_seacr_cut_n_run.py) \
 				${sep=' ' tas} \
 				${'--gensz ' + gensz} \
