@@ -69,8 +69,8 @@ def main():
     log.info('Initializing and making output directory...')
     mkdir_p(args.out_dir)
 
-    log.info('Split TAG-ALIGN...')
-    ta_high, ta_low = spr_pe(args.ta, args.split_read_len, args.out_dir)
+    log.info('Splitting TAG-ALIGN...')
+    ta_high, ta_low = split_ta(args.ta, args.split_read_len, args.out_dir)
 
     log.info('List all files in output directory...')
     ls_l(args.out_dir)
