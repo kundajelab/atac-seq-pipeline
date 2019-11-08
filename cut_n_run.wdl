@@ -7,7 +7,7 @@
 
 workflow cut_n_run {
 	# pipeline version
-	String pipeline_ver = 'dev-v0.1.0'
+	String pipeline_ver = 'dev-v0.2.0'
 
 	# general sample information
 	String title = 'Untitled'
@@ -86,6 +86,8 @@ workflow cut_n_run {
 									# e.g. (default: mito-chrs) ['chrM', 'MT']
 	Int subsample_reads = 0			# subsample TAGALIGN (0: no subsampling)
 	Int xcor_subsample_reads = 25000000 # subsample TAG-ALIGN for xcor only (not used for other downsteam analyses)
+	Int split_read_len = 0			# split TAG-ALIGN into two (high/low) according to read length.
+									# 0 = no splitting
 
 	# parameters for peak calling
 	Boolean always_use_pooled_ctl = false # always use pooled control for all exp rep.
@@ -203,14 +205,6 @@ workflow cut_n_run {
 
 	# optional read length array. used it pipeline starts from BAM or TA
 	Array[Int?] read_len = [] 		# [rep_id]. read length for each rep
-
-	# other input types (peak)
-	Array[File?] peaks = []			# per replicate
-	Array[File?] peaks_pr1 = []		# per replicate. do not define if true_rep_only==true
-	Array[File?] peaks_pr2 = []		# per replicate. do not define if true_rep_only==true
-	File? peak_ppr1					# do not define if unreplicated or true_rep_only==true
-	File? peak_ppr2					# do not define if unreplicated or true_rep_only==true
-	File? peak_pooled				# do not define if unreplicated or true_rep_only==true
 
 	####################### pipeline starts here #######################
 	# DO NOT DEFINE ANY VARIABLES DECLARED BELOW IN AN INPUT JSON FILE #
@@ -366,9 +360,7 @@ workflow cut_n_run {
 		else length(nodup_bams)
 	Int num_rep_ta = if length(tas)<num_rep_nodup_bam then num_rep_nodup_bam
 		else length(tas)
-	Int num_rep_peak = if length(peaks)<num_rep_ta then num_rep_ta
-		else length(peaks)
-	Int num_rep = num_rep_peak
+	Int num_rep = num_rep_ta
 
 	# temporary variables to get number of controls
 	Int num_ctl_fastq = length(ctl_fastqs_R1)
@@ -500,6 +492,16 @@ workflow cut_n_run {
 		}
 		File? ta_ = if has_output_of_bam2ta then tas[i] else bam2ta.ta
 
+		Boolean has_input_of_split_ta_by_read_len = defined(ta_)
+		if ( has_input_of_split_ta_by_read_len ) {
+			call split_ta_by_read_len { input :
+				ta = ta_,
+				split_read_len = split_read_len,
+			}
+		}
+		File? ta_high_ = split_ta_by_read_len.ta_high
+		File? ta_low_ = split_ta_by_read_len.ta_low
+
 		Boolean has_input_of_xcor = has_output_of_align || defined(align.bam)
 		if ( has_input_of_xcor && enable_xcor ) {
 			call filter as filter_no_dedup { input :
@@ -549,6 +551,16 @@ workflow cut_n_run {
 		if ( has_input_of_spr && !align_only && !true_rep_only ) {
 			call spr { input :
 				ta = ta_,
+				paired_end = paired_end_,
+				mem_mb = spr_mem_mb,
+			}
+			call spr as spr_high { input :
+				ta = ta_high_,
+				paired_end = paired_end_,
+				mem_mb = spr_mem_mb,
+			}
+			call spr as spr_low { input :
+				ta = ta_low_,
 				paired_end = paired_end_,
 				mem_mb = spr_mem_mb,
 			}
@@ -689,6 +701,12 @@ workflow cut_n_run {
 		call pool_ta { input :
 			tas = ta_,
 		}
+		call pool_ta as pool_ta_high { input :
+			tas = ta_high_,
+		}
+		call pool_ta as pool_ta_low { input :
+			tas = ta_low_,
+		}
 	}
 
 	# if there are pr1 TAs for ALL replicates then pool them
@@ -698,6 +716,12 @@ workflow cut_n_run {
 		call pool_ta as pool_ta_pr1 { input :
 			tas = spr.ta_pr1,
 		}
+		call pool_ta as pool_ta_pr1_high { input :
+			tas = spr_high.ta_pr1,
+		}
+		call pool_ta as pool_ta_pr1_low { input :
+			tas = spr_low.ta_pr1,
+		}
 	}
 
 	# if there are pr2 TAs for ALL replicates then pool them
@@ -706,6 +730,12 @@ workflow cut_n_run {
 		# pool tagaligns from pseudo replicate 2
 		call pool_ta as pool_ta_pr2 { input :
 			tas = spr.ta_pr2,
+		}
+		call pool_ta as pool_ta_pr2_high { input :
+			tas = spr_high.ta_pr2,
+		}
+		call pool_ta as pool_ta_pr2_low { input :
+			tas = spr_low.ta_pr2,
 		}
 	}
 
@@ -772,8 +802,7 @@ workflow cut_n_run {
 	# we have all tas and ctl_tas (optional for histone chipseq) ready, let's call peaks
 	scatter(i in range(num_rep)) {
 		Boolean has_input_of_call_peak = defined(ta_[i])
-		Boolean has_output_of_call_peak = i<length(peaks) && defined(peaks[i])
-		if ( has_input_of_call_peak && !has_output_of_call_peak && !align_only ) {
+		if ( has_input_of_call_peak && !align_only ) {
 			call call_peak { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
@@ -792,9 +821,46 @@ workflow cut_n_run {
 				disks = call_peak_disks,
 				time_hr = call_peak_time_hr,
 			}
+			call call_peak as call_peak_high { input :
+				peak_caller = peak_caller_,
+				peak_type = peak_type_,
+				smooth_win = smooth_win,
+				custom_call_peak_py = custom_call_peak_py,
+				tas = flatten([[ta_high_[i]], chosen_ctl_tas[i]]),
+				gensz = gensz_,
+				chrsz = chrsz_,
+				cap_num_peak = cap_num_peak_,
+				pval_thresh = pval_thresh,
+				blacklist = blacklist_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+				cpu = call_peak_cpu,
+				mem_mb = call_peak_mem_mb,
+				disks = call_peak_disks,
+				time_hr = call_peak_time_hr,
+			}
+			call call_peak as call_peak_low { input :
+				peak_caller = peak_caller_,
+				peak_type = peak_type_,
+				smooth_win = smooth_win,
+				custom_call_peak_py = custom_call_peak_py,
+				tas = flatten([[ta_low_[i]], chosen_ctl_tas[i]]),
+				gensz = gensz_,
+				chrsz = chrsz_,
+				cap_num_peak = cap_num_peak_,
+				pval_thresh = pval_thresh,
+				blacklist = blacklist_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+				cpu = call_peak_cpu,
+				mem_mb = call_peak_mem_mb,
+				disks = call_peak_disks,
+				time_hr = call_peak_time_hr,
+			}
 		}
-		File? peak_ = if has_output_of_call_peak then peaks[i]
-			else call_peak.peak
+		File? peak_ = call_peak.peak
+		File? peak_high_ = call_peak_high.peak
+		File? peak_low_ = call_peak_low.peak
 
 		# signal track
 		if ( has_input_of_call_peak && !align_only ) {
@@ -813,8 +879,7 @@ workflow cut_n_run {
 
 		# call peaks on 1st pseudo replicated tagalign
 		Boolean has_input_of_call_peak_pr1 = defined(spr.ta_pr1[i])
-		Boolean has_output_of_call_peak_pr1 = i<length(peaks_pr1) && defined(peaks_pr1[i])
-		if ( has_input_of_call_peak_pr1 && !has_output_of_call_peak_pr1 && !true_rep_only ) {
+		if ( has_input_of_call_peak_pr1 && !true_rep_only ) {
 			call call_peak as call_peak_pr1 { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
@@ -833,14 +898,50 @@ workflow cut_n_run {
 				disks = call_peak_disks,
 				time_hr = call_peak_time_hr,
 			}
+			call call_peak as call_peak_pr1_high { input :
+				peak_caller = peak_caller_,
+				peak_type = peak_type_,
+				smooth_win = smooth_win,
+				custom_call_peak_py = custom_call_peak_py,
+				tas = flatten([[spr_high.ta_pr1[i]], chosen_ctl_tas[i]]),
+				gensz = gensz_,
+				chrsz = chrsz_,
+				cap_num_peak = cap_num_peak_,
+				pval_thresh = pval_thresh,
+				blacklist = blacklist_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+	
+				cpu = call_peak_cpu,
+				mem_mb = call_peak_mem_mb,
+				disks = call_peak_disks,
+				time_hr = call_peak_time_hr,
+			}
+			call call_peak as call_peak_pr1_low { input :
+				peak_caller = peak_caller_,
+				peak_type = peak_type_,
+				smooth_win = smooth_win,
+				custom_call_peak_py = custom_call_peak_py,
+				tas = flatten([[spr_low.ta_pr1[i]], chosen_ctl_tas[i]]),
+				gensz = gensz_,
+				chrsz = chrsz_,
+				cap_num_peak = cap_num_peak_,
+				pval_thresh = pval_thresh,
+				blacklist = blacklist_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+	
+				cpu = call_peak_cpu,
+				mem_mb = call_peak_mem_mb,
+				disks = call_peak_disks,
+				time_hr = call_peak_time_hr,
+			}
 		}
-		File? peak_pr1_ = if has_output_of_call_peak_pr1 then peaks_pr1[i]
-			else call_peak_pr1.peak
+		File? peak_pr1_ = call_peak_pr1.peak
+		File? peak_pr1_high_ = call_peak_pr1_high.peak
+		File? peak_pr1_low_ = call_peak_pr1_low.peak
 
 		# call peaks on 2nd pseudo replicated tagalign
 		Boolean has_input_of_call_peak_pr2 = defined(spr.ta_pr2[i])
-		Boolean has_output_of_call_peak_pr2 = i<length(peaks_pr2) && defined(peaks_pr2[i])
-		if ( has_input_of_call_peak_pr2 && !has_output_of_call_peak_pr2 && !true_rep_only ) {
+		if ( has_input_of_call_peak_pr2 && !true_rep_only ) {
 			call call_peak as call_peak_pr2 { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
@@ -859,14 +960,50 @@ workflow cut_n_run {
 				disks = call_peak_disks,
 				time_hr = call_peak_time_hr,
 			}
+			call call_peak as call_peak_pr2_high { input :
+				peak_caller = peak_caller_,
+				peak_type = peak_type_,
+				smooth_win = smooth_win,
+				custom_call_peak_py = custom_call_peak_py,
+				tas = flatten([[spr_high.ta_pr2[i]], chosen_ctl_tas[i]]),
+				gensz = gensz_,
+				chrsz = chrsz_,
+				cap_num_peak = cap_num_peak_,
+				pval_thresh = pval_thresh,
+				blacklist = blacklist_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+				cpu = call_peak_cpu,
+				mem_mb = call_peak_mem_mb,
+				disks = call_peak_disks,
+				time_hr = call_peak_time_hr,
+			}
+			call call_peak as call_peak_pr2_low { input :
+				peak_caller = peak_caller_,
+				peak_type = peak_type_,
+				smooth_win = smooth_win,
+				custom_call_peak_py = custom_call_peak_py,
+				tas = flatten([[spr_low.ta_pr2[i]], chosen_ctl_tas[i]]),
+				gensz = gensz_,
+				chrsz = chrsz_,
+				cap_num_peak = cap_num_peak_,
+				pval_thresh = pval_thresh,
+				blacklist = blacklist_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+				cpu = call_peak_cpu,
+				mem_mb = call_peak_mem_mb,
+				disks = call_peak_disks,
+				time_hr = call_peak_time_hr,
+			}
 		}
-		File? peak_pr2_ = if has_output_of_call_peak_pr2 then peaks_pr2[i]
-			else call_peak_pr2.peak
+		File? peak_pr2_ = call_peak_pr2.peak
+		File? peak_pr2_high_ = call_peak_pr2_high.peak
+		File? peak_pr2_low_ = call_peak_pr2_low.peak
 	}
 
 	Boolean has_input_of_call_peak_pooled = defined(pool_ta.ta_pooled)
-	Boolean has_output_of_call_peak_pooled = defined(peak_pooled)
-	if ( has_input_of_call_peak_pooled && !has_output_of_call_peak_pooled && !align_only && num_rep>1 ) {
+	if ( has_input_of_call_peak_pooled && !align_only && num_rep>1 ) {
 		# call peaks on pooled replicate
 		# always call peaks for pooled replicate to get signal tracks
 		call call_peak as call_peak_pooled { input :
@@ -887,9 +1024,46 @@ workflow cut_n_run {
 			disks = call_peak_disks,
 			time_hr = call_peak_time_hr,
 		}
+		call call_peak as call_peak_pooled_high { input :
+			peak_caller = peak_caller_,
+			peak_type = peak_type_,
+			smooth_win = smooth_win,
+			custom_call_peak_py = custom_call_peak_py,
+			tas = flatten([select_all([pool_ta_high.ta_pooled]), chosen_ctl_ta_pooled]),
+			gensz = gensz_,
+			chrsz = chrsz_,
+			cap_num_peak = cap_num_peak_,
+			pval_thresh = pval_thresh,
+			blacklist = blacklist_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+			cpu = call_peak_cpu,
+			mem_mb = call_peak_mem_mb,
+			disks = call_peak_disks,
+			time_hr = call_peak_time_hr,
+		}
+		call call_peak as call_peak_pooled_low { input :
+			peak_caller = peak_caller_,
+			peak_type = peak_type_,
+			smooth_win = smooth_win,
+			custom_call_peak_py = custom_call_peak_py,
+			tas = flatten([select_all([pool_ta_low.ta_pooled]), chosen_ctl_ta_pooled]),
+			gensz = gensz_,
+			chrsz = chrsz_,
+			cap_num_peak = cap_num_peak_,
+			pval_thresh = pval_thresh,
+			blacklist = blacklist_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+			cpu = call_peak_cpu,
+			mem_mb = call_peak_mem_mb,
+			disks = call_peak_disks,
+			time_hr = call_peak_time_hr,
+		}
 	}
-	File? peak_pooled_ = if has_output_of_call_peak_pooled then peak_pooled
-		else call_peak_pooled.peak	
+	File? peak_pooled_ = call_peak_pooled.peak
+	File? peak_pooled_high_ = call_peak_pooled_high.peak
+	File? peak_pooled_low_ = call_peak_pooled_low.peak
 
 	# macs2 signal track for pooled rep
 	if ( has_input_of_call_peak_pooled && !align_only && num_rep>1 ) {
@@ -907,8 +1081,7 @@ workflow cut_n_run {
 	}
 
 	Boolean has_input_of_call_peak_ppr1 = defined(pool_ta_pr1.ta_pooled)
-	Boolean has_output_of_call_peak_ppr1 = defined(peak_ppr1)
-	if ( has_input_of_call_peak_ppr1 && !has_output_of_call_peak_ppr1 && !align_only && !true_rep_only && num_rep>1 ) {
+	if ( has_input_of_call_peak_ppr1 && !align_only && !true_rep_only && num_rep>1 ) {
 		# call peaks on 1st pooled pseudo replicates
 		call call_peak as call_peak_ppr1 { input :
 			peak_caller = peak_caller_,
@@ -928,13 +1101,49 @@ workflow cut_n_run {
 			disks = call_peak_disks,
 			time_hr = call_peak_time_hr,
 		}
+		call call_peak as call_peak_ppr1_high { input :
+			peak_caller = peak_caller_,
+			peak_type = peak_type_,
+			smooth_win = smooth_win,
+			custom_call_peak_py = custom_call_peak_py,
+			tas = flatten([select_all([pool_ta_pr1_high.ta_pooled]), chosen_ctl_ta_pooled]),
+			gensz = gensz_,
+			chrsz = chrsz_,
+			cap_num_peak = cap_num_peak_,
+			pval_thresh = pval_thresh,
+			blacklist = blacklist_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+			cpu = call_peak_cpu,
+			mem_mb = call_peak_mem_mb,
+			disks = call_peak_disks,
+			time_hr = call_peak_time_hr,
+		}
+		call call_peak as call_peak_ppr1_low { input :
+			peak_caller = peak_caller_,
+			peak_type = peak_type_,
+			smooth_win = smooth_win,
+			custom_call_peak_py = custom_call_peak_py,
+			tas = flatten([select_all([pool_ta_pr1_low.ta_pooled]), chosen_ctl_ta_pooled]),
+			gensz = gensz_,
+			chrsz = chrsz_,
+			cap_num_peak = cap_num_peak_,
+			pval_thresh = pval_thresh,
+			blacklist = blacklist_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+			cpu = call_peak_cpu,
+			mem_mb = call_peak_mem_mb,
+			disks = call_peak_disks,
+			time_hr = call_peak_time_hr,
+		}
 	}
-	File? peak_ppr1_ = if has_output_of_call_peak_ppr1 then peak_ppr1
-		else call_peak_ppr1.peak
+	File? peak_ppr1_ = call_peak_ppr1.peak
+	File? peak_ppr1_high_ = call_peak_ppr1_high.peak
+	File? peak_ppr1_low_ = call_peak_ppr1_low.peak
 
 	Boolean has_input_of_call_peak_ppr2 = defined(pool_ta_pr2.ta_pooled)
-	Boolean has_output_of_call_peak_ppr2 = defined(peak_ppr2)
-	if ( has_input_of_call_peak_ppr2 && !has_output_of_call_peak_ppr2 && !align_only && !true_rep_only && num_rep>1 ) {
+	if ( has_input_of_call_peak_ppr2 && !align_only && !true_rep_only && num_rep>1 ) {
 		# call peaks on 2nd pooled pseudo replicates
 		call call_peak as call_peak_ppr2 { input :
 			peak_caller = peak_caller_,
@@ -954,9 +1163,46 @@ workflow cut_n_run {
 			disks = call_peak_disks,
 			time_hr = call_peak_time_hr,
 		}
+		call call_peak as call_peak_ppr2_high { input :
+			peak_caller = peak_caller_,
+			peak_type = peak_type_,
+			smooth_win = smooth_win,
+			custom_call_peak_py = custom_call_peak_py,
+			tas = flatten([select_all([pool_ta_pr2_high.ta_pooled]), chosen_ctl_ta_pooled]),
+			gensz = gensz_,
+			chrsz = chrsz_,
+			cap_num_peak = cap_num_peak_,
+			pval_thresh = pval_thresh,
+			blacklist = blacklist_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+			cpu = call_peak_cpu,
+			mem_mb = call_peak_mem_mb,
+			disks = call_peak_disks,
+			time_hr = call_peak_time_hr,
+		}
+		call call_peak as call_peak_ppr2_low { input :
+			peak_caller = peak_caller_,
+			peak_type = peak_type_,
+			smooth_win = smooth_win,
+			custom_call_peak_py = custom_call_peak_py,
+			tas = flatten([select_all([pool_ta_pr2_low.ta_pooled]), chosen_ctl_ta_pooled]),
+			gensz = gensz_,
+			chrsz = chrsz_,
+			cap_num_peak = cap_num_peak_,
+			pval_thresh = pval_thresh,
+			blacklist = blacklist_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+
+			cpu = call_peak_cpu,
+			mem_mb = call_peak_mem_mb,
+			disks = call_peak_disks,
+			time_hr = call_peak_time_hr,
+		}
 	}
-	File? peak_ppr2_ = if has_output_of_call_peak_ppr2 then peak_ppr2
-		else call_peak_ppr2.peak
+	File? peak_ppr2_ = call_peak_ppr2.peak
+	File? peak_ppr2_high_ = call_peak_ppr2_high.peak
+	File? peak_ppr2_low_ = call_peak_ppr2_low.peak
 
 	# do IDR/overlap on all pairs of two replicates (i,j)
 	# 	where i and j are zero-based indices and 0 <= i < j < num_rep
@@ -983,6 +1229,28 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = pool_ta.ta_pooled,
 			}
+			call overlap as overlap_high { input :
+				prefix = 'rep'+(pair.left+1)+'_vs_rep'+(pair.right+1),
+				peak1 = peak_high_[pair.left],
+				peak2 = peak_high_[pair.right],
+				peak_pooled = peak_pooled_high_,
+				peak_type = peak_type_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = pool_ta_high.ta_pooled,
+			}
+			call overlap as overlap_low { input :
+				prefix = 'rep'+(pair.left+1)+'_vs_rep'+(pair.right+1),
+				peak1 = peak_low_[pair.left],
+				peak2 = peak_low_[pair.right],
+				peak_pooled = peak_pooled_low_,
+				peak_type = peak_type_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = pool_ta_low.ta_pooled,
+			}
 		}
 	}
 
@@ -1004,6 +1272,32 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = pool_ta.ta_pooled,
 			}
+			call idr as idr_high { input :
+				prefix = 'rep'+(pair.left+1)+'_vs_rep'+(pair.right+1),
+				peak1 = peak_high_[pair.left],
+				peak2 = peak_high_[pair.right],
+				peak_pooled = peak_pooled_high_,
+				idr_thresh = idr_thresh,
+				peak_type = peak_type_,
+				rank = idr_rank_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = pool_ta_high.ta_pooled,
+			}
+			call idr as idr_low { input :
+				prefix = 'rep'+(pair.left+1)+'_vs_rep'+(pair.right+1),
+				peak1 = peak_low_[pair.left],
+				peak2 = peak_low_[pair.right],
+				peak_pooled = peak_pooled_low_,
+				idr_thresh = idr_thresh,
+				peak_type = peak_type_,
+				rank = idr_rank_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = pool_ta_low.ta_pooled,
+			}
 		}
 	}
 
@@ -1020,6 +1314,28 @@ workflow cut_n_run {
 				chrsz = chrsz_,
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = ta_[i],
+			}
+			call overlap as overlap_pr_high { input :
+				prefix = 'rep'+(i+1)+'-pr1_vs_rep'+(i+1)+'-pr2',
+				peak1 = peak_pr1_high_[i],
+				peak2 = peak_pr2_high_[i],
+				peak_pooled = peak_high_[i],
+				peak_type = peak_type_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = ta_high_[i],
+			}
+			call overlap as overlap_pr_low { input :
+				prefix = 'rep'+(i+1)+'-pr1_vs_rep'+(i+1)+'-pr2',
+				peak1 = peak_pr1_low_[i],
+				peak2 = peak_pr2_low_[i],
+				peak_pooled = peak_low_[i],
+				peak_type = peak_type_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = ta_low_[i],
 			}
 		}
 	}
@@ -1040,6 +1356,32 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = ta_[i],
 			}
+			call idr as idr_pr_high { input :
+				prefix = 'rep'+(i+1)+'-pr1_vs_rep'+(i+1)+'-pr2',
+				peak1 = peak_pr1_high_[i],
+				peak2 = peak_pr2_high_[i],
+				peak_pooled = peak_high_[i],
+				idr_thresh = idr_thresh,
+				peak_type = peak_type_,
+				rank = idr_rank_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = ta_high_[i],
+			}
+			call idr as idr_pr_low { input :
+				prefix = 'rep'+(i+1)+'-pr1_vs_rep'+(i+1)+'-pr2',
+				peak1 = peak_pr1_low_[i],
+				peak2 = peak_pr2_low_[i],
+				peak_pooled = peak_low_[i],
+				idr_thresh = idr_thresh,
+				peak_type = peak_type_,
+				rank = idr_rank_,
+				blacklist = blacklist_,
+				chrsz = chrsz_,
+				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+				ta = ta_low_[i],
+			}
 		}
 	}
 
@@ -1055,6 +1397,28 @@ workflow cut_n_run {
 			chrsz = chrsz_,
 			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 			ta = pool_ta.ta_pooled,
+		}
+		call overlap as overlap_ppr_high { input :
+			prefix = 'pooled-pr1_vs_pooled-pr2',
+			peak1 = peak_ppr1_high_,
+			peak2 = peak_ppr2_high_,
+			peak_pooled = peak_pooled_high_,
+			peak_type = peak_type_,
+			blacklist = blacklist_,
+			chrsz = chrsz_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+			ta = pool_ta_high.ta_pooled,
+		}
+		call overlap as overlap_ppr_low { input :
+			prefix = 'pooled-pr1_vs_pooled-pr2',
+			peak1 = peak_ppr1_low_,
+			peak2 = peak_ppr2_low_,
+			peak_pooled = peak_pooled_low_,
+			peak_type = peak_type_,
+			blacklist = blacklist_,
+			chrsz = chrsz_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+			ta = pool_ta_low.ta_pooled,
 		}
 	}
 
@@ -1073,6 +1437,32 @@ workflow cut_n_run {
 			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 			ta = pool_ta.ta_pooled,
 		}
+		call idr as idr_ppr_high { input :
+			prefix = 'pooled-pr1_vs_pooled-pr2',
+			peak1 = peak_ppr1_high_,
+			peak2 = peak_ppr2_high_,
+			peak_pooled = peak_pooled_high_,
+			idr_thresh = idr_thresh,
+			peak_type = peak_type_,
+			rank = idr_rank_,
+			blacklist = blacklist_,
+			chrsz = chrsz_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+			ta = pool_ta_high.ta_pooled,
+		}
+		call idr as idr_ppr_low { input :
+			prefix = 'pooled-pr1_vs_pooled-pr2',
+			peak1 = peak_ppr1_low_,
+			peak2 = peak_ppr2_low_,
+			peak_pooled = peak_pooled_low_,
+			idr_thresh = idr_thresh,
+			peak_type = peak_type_,
+			rank = idr_rank_,
+			blacklist = blacklist_,
+			chrsz = chrsz_,
+			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
+			ta = pool_ta_low.ta_pooled,
+		}
 	}
 
 	# reproducibility QC for overlap/IDR peaks
@@ -1083,6 +1473,22 @@ workflow cut_n_run {
 			peaks = overlap.bfilt_overlap_peak,
 			peaks_pr = overlap_pr.bfilt_overlap_peak,
 			peak_ppr = overlap_ppr.bfilt_overlap_peak,
+			peak_type = peak_type_,
+			chrsz = chrsz_,
+		}
+		call reproducibility as reproducibility_overlap_high { input :
+			prefix = 'overlap',
+			peaks = overlap_high.bfilt_overlap_peak,
+			peaks_pr = overlap_pr_high.bfilt_overlap_peak,
+			peak_ppr = overlap_ppr_high.bfilt_overlap_peak,
+			peak_type = peak_type_,
+			chrsz = chrsz_,
+		}
+		call reproducibility as reproducibility_overlap_low { input :
+			prefix = 'overlap',
+			peaks = overlap_low.bfilt_overlap_peak,
+			peaks_pr = overlap_pr_low.bfilt_overlap_peak,
+			peak_ppr = overlap_ppr_low.bfilt_overlap_peak,
 			peak_type = peak_type_,
 			chrsz = chrsz_,
 		}
@@ -1098,6 +1504,22 @@ workflow cut_n_run {
 			peak_type = peak_type_,
 			chrsz = chrsz_,
 		}
+		call reproducibility as reproducibility_idr_high { input :
+			prefix = 'idr',
+			peaks = idr_high.bfilt_idr_peak,
+			peaks_pr = idr_pr_high.bfilt_idr_peak,
+			peak_ppr = idr_ppr_high.bfilt_idr_peak,
+			peak_type = peak_type_,
+			chrsz = chrsz_,
+		}
+		call reproducibility as reproducibility_idr_low { input :
+			prefix = 'idr',
+			peaks = idr_low.bfilt_idr_peak,
+			peaks_pr = idr_pr_low.bfilt_idr_peak,
+			peak_ppr = idr_ppr_low.bfilt_idr_peak,
+			peak_type = peak_type_,
+			chrsz = chrsz_,
+		}
 	}
 
 	# Generate final QC report and JSON
@@ -1108,6 +1530,7 @@ workflow cut_n_run {
 		genome = genome_name_,
 		multimapping = multimapping,
 		paired_ends = paired_end_,
+		ctl_paired_ends = ctl_paired_end_,
 		pipeline_type = pipeline_type,
 		aligner = aligner_,
 		peak_caller = peak_caller_,
@@ -1170,6 +1593,140 @@ workflow cut_n_run {
 		overlap_opt_num_peak_qc = reproducibility_overlap.num_peak_qc,
 	}
 
+	if ( !align_only ) {
+		call qc_report as qc_report_high { input :
+			pipeline_ver = pipeline_ver,
+			title = title + ' (high)',
+			description = description + ' (high)',
+			genome = genome_name_,
+			multimapping = multimapping,
+			paired_ends = paired_end_,
+			ctl_paired_ends = ctl_paired_end_,
+			pipeline_type = pipeline_type,
+			aligner = aligner_,
+			peak_caller = peak_caller_,
+			cap_num_peak = cap_num_peak_,
+			idr_thresh = idr_thresh,
+			pval_thresh = pval_thresh,
+			xcor_subsample_reads = xcor_subsample_reads,
+
+			samstat_qcs = [],
+			nodup_samstat_qcs = [],
+
+			frac_mito_qcs = [],
+			dup_qcs = [],
+			lib_complexity_qcs = [],
+			xcor_plots = [],
+			xcor_scores = [],
+
+			annot_enrich_qcs = [],
+			tss_enrich_qcs = [],
+			tss_large_plots = [],
+			fraglen_dist_plots = [],
+			fraglen_nucleosomal_qcs = [],
+			gc_plots = [],
+			preseq_plots = [],
+			picard_est_lib_size_qcs = [],
+
+			frip_qcs = call_peak_high.frip_qc,
+			frip_qcs_pr1 = call_peak_pr1_high.frip_qc,
+			frip_qcs_pr2 = call_peak_pr2_high.frip_qc,
+
+			frip_qc_pooled = call_peak_pooled_high.frip_qc,
+			frip_qc_ppr1 = call_peak_ppr1_high.frip_qc,
+			frip_qc_ppr2 = call_peak_ppr2_high.frip_qc,
+
+			idr_plots = idr_high.idr_plot,
+			idr_plots_pr = idr_pr_high.idr_plot,
+			idr_plot_ppr = idr_ppr_high.idr_plot,
+			frip_idr_qcs = idr_high.frip_qc,
+			frip_idr_qcs_pr = idr_pr_high.frip_qc,
+			frip_idr_qc_ppr = idr_ppr_high.frip_qc,
+			frip_overlap_qcs = overlap_high.frip_qc,
+			frip_overlap_qcs_pr = overlap_pr_high.frip_qc,
+			frip_overlap_qc_ppr = overlap_ppr_high.frip_qc,
+			idr_reproducibility_qc = reproducibility_idr_high.reproducibility_qc,
+			overlap_reproducibility_qc = reproducibility_overlap_high.reproducibility_qc,
+
+			peak_region_size_qcs = call_peak_high.peak_region_size_qc,
+			peak_region_size_plots = call_peak_high.peak_region_size_plot,
+			num_peak_qcs = call_peak_high.num_peak_qc,
+
+			idr_opt_peak_region_size_qc = reproducibility_idr_high.peak_region_size_qc,
+			idr_opt_peak_region_size_plot = reproducibility_overlap_high.peak_region_size_plot,
+			idr_opt_num_peak_qc = reproducibility_idr_high.num_peak_qc,
+
+			overlap_opt_peak_region_size_qc = reproducibility_overlap_high.peak_region_size_qc,
+			overlap_opt_peak_region_size_plot = reproducibility_overlap_high.peak_region_size_plot,
+			overlap_opt_num_peak_qc = reproducibility_overlap_high.num_peak_qc,
+		}
+		call qc_report as qc_report_low { input :
+			pipeline_ver = pipeline_ver,
+			title = title + ' (low)',
+			description = description + ' (low)',
+			genome = genome_name_,
+			multimapping = multimapping,
+			paired_ends = paired_end_,
+			ctl_paired_ends = ctl_paired_end_,
+			pipeline_type = pipeline_type,
+			aligner = aligner_,
+			peak_caller = peak_caller_,
+			cap_num_peak = cap_num_peak_,
+			idr_thresh = idr_thresh,
+			pval_thresh = pval_thresh,
+			xcor_subsample_reads = xcor_subsample_reads,
+
+			samstat_qcs = [],
+			nodup_samstat_qcs = [],
+
+			frac_mito_qcs = [],
+			dup_qcs = [],
+			lib_complexity_qcs = [],
+			xcor_plots = [],
+			xcor_scores = [],
+
+			annot_enrich_qcs = [],
+			tss_enrich_qcs = [],
+			tss_large_plots = [],
+			fraglen_dist_plots = [],
+			fraglen_nucleosomal_qcs = [],
+			gc_plots = [],
+			preseq_plots = [],
+			picard_est_lib_size_qcs = [],
+
+			frip_qcs = call_peak_low.frip_qc,
+			frip_qcs_pr1 = call_peak_pr1_low.frip_qc,
+			frip_qcs_pr2 = call_peak_pr2_low.frip_qc,
+
+			frip_qc_pooled = call_peak_pooled_low.frip_qc,
+			frip_qc_ppr1 = call_peak_ppr1_low.frip_qc,
+			frip_qc_ppr2 = call_peak_ppr2_low.frip_qc,
+
+			idr_plots = idr_low.idr_plot,
+			idr_plots_pr = idr_pr_low.idr_plot,
+			idr_plot_ppr = idr_ppr_low.idr_plot,
+			frip_idr_qcs = idr_low.frip_qc,
+			frip_idr_qcs_pr = idr_pr_low.frip_qc,
+			frip_idr_qc_ppr = idr_ppr_low.frip_qc,
+			frip_overlap_qcs = overlap_low.frip_qc,
+			frip_overlap_qcs_pr = overlap_pr_low.frip_qc,
+			frip_overlap_qc_ppr = overlap_ppr_low.frip_qc,
+			idr_reproducibility_qc = reproducibility_idr_low.reproducibility_qc,
+			overlap_reproducibility_qc = reproducibility_overlap_low.reproducibility_qc,
+
+			peak_region_size_qcs = call_peak_low.peak_region_size_qc,
+			peak_region_size_plots = call_peak_low.peak_region_size_plot,
+			num_peak_qcs = call_peak_low.num_peak_qc,
+
+			idr_opt_peak_region_size_qc = reproducibility_idr_low.peak_region_size_qc,
+			idr_opt_peak_region_size_plot = reproducibility_overlap_low.peak_region_size_plot,
+			idr_opt_num_peak_qc = reproducibility_idr_low.num_peak_qc,
+
+			overlap_opt_peak_region_size_qc = reproducibility_overlap_low.peak_region_size_qc,
+			overlap_opt_peak_region_size_plot = reproducibility_overlap_low.peak_region_size_plot,
+			overlap_opt_num_peak_qc = reproducibility_overlap_low.num_peak_qc,
+		}
+	}
 	output {
 		File report = qc_report.report
 		File qc_json = qc_report.qc_json
@@ -1379,6 +1936,27 @@ task spr { # make two self pseudo replicates
 		memory : '${mem_mb} MB'
 		time : 1
 		disks : 'local-disk 50 HDD'
+	}
+}
+
+task split_ta_by_read_len {
+	File ta
+	Int split_read_len
+
+	command {
+		python3 $(which encode_task_split_ta_by_read_len.py) \
+			${ta} \
+			${'--split-read-len ' + split_read_len}
+	}
+	output {
+		File ta_high = glob('*.high.tagAlign.gz')[0]
+		File ta_low = glob('*.low.tagAlign.gz')[0]
+	}
+	runtime {
+		cpu : 1
+		memory : '4096 MB'
+		time : 1
+		disks : 'local-disk 100 HDD'
 	}
 }
 
@@ -1887,6 +2465,7 @@ task qc_report {
 	# workflow params
 	Int multimapping
 	Array[Boolean?] paired_ends
+	Array[Boolean?] ctl_paired_ends
 	String pipeline_type
 	String aligner
 	String peak_caller
@@ -1953,6 +2532,7 @@ task qc_report {
 			${'--genome ' + genome} \
 			${'--multimapping ' + multimapping} \
 			--paired-ends ${sep=' ' paired_ends} \
+			--ctl-paired-ends ${sep=' ' ctl_paired_ends} \			
 			--pipeline-type ${pipeline_type} \
 			--aligner ${aligner} \
 			--peak-caller ${peak_caller} \

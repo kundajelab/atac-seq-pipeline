@@ -26,6 +26,8 @@
 
     "cut_n_run.read_len" : [],
 
+    "cut_n_run.split_read_len" : 50,
+
     "cut_n_run.mapq_thresh" : 30,
     "cut_n_run.dup_marker" : "picard",
     "cut_n_run.no_dup_removal" : false,
