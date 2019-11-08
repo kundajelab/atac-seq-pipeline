@@ -49,6 +49,7 @@ def split_ta(ta, split_read_len, out_dir):
         ta=ta,
         read_len=split_read_len,
         out=ta_high)
+    run_shell_cmd(cmd1)
 
     cmd2 = 'zcat -f {ta} | '
     cmd2 += 'awk \'{{if ($3-$2<={read_len} && $3-$2>=-{read_len}) print $0}}\' | '
@@ -57,6 +58,7 @@ def split_ta(ta, split_read_len, out_dir):
         ta=ta,
         read_len=split_read_len,
         out=ta_low)
+    run_shell_cmd(cmd2)
 
     return ta_high, ta_low
 
