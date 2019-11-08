@@ -2117,13 +2117,21 @@ task call_peak {
 		set -e
 
 		if [ '${peak_caller}' == 'macs2' ]; then
-			python2 $(which encode_task_macs2_cut_n_run.py) \
+			python3 $(which encode_task_macs2_cut_n_run.py) \
 				${sep=' ' tas} \
 				${'--gensz ' + gensz} \
 				${'--chrsz ' + chrsz} \
 				${'--cap-num-peak ' + cap_num_peak} \
 				${'--pval-thresh '+ pval_thresh} \
 				${'--smooth-win '+ smooth_win}
+		if [ '${peak_caller}' == 'seacr' ]; then
+			python3 $(which encode_task_seacr_cut_n_run.py) \
+				${sep=' ' tas} \
+				${'--gensz ' + gensz} \
+				${'--chrsz ' + chrsz} \
+				${'--cap-num-peak ' + cap_num_peak} \
+				${'--pval-thresh '+ pval_thresh} \
+				${'--smooth-win '+ smooth_win}		
 		else
 			python ${custom_call_peak_py} \
 				${sep=' ' tas} \
