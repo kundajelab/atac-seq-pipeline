@@ -84,9 +84,8 @@ workflow cut_n_run {
 									# array of chromosomes to be removed from nodup/filt BAM
 									# chromosomes will be removed from both BAM header/contents
 									# e.g. (default: mito-chrs) ['chrM', 'MT']
-	Int subsample_reads = 0			# subsample TAGALIGN (0: no subsampling)
 	Int xcor_subsample_reads = 25000000 # subsample TAG-ALIGN for xcor only (not used for other downsteam analyses)
-	Int split_read_len = 0			# split TAG-ALIGN into two (high/low) according to read length.
+	Int split_fraglen = 0			# split TAG-ALIGN into two (high/low) according to read length.
 									# 0 = no splitting
 
 	# parameters for peak calling
@@ -480,9 +479,9 @@ workflow cut_n_run {
 			call bam2ta { input :
 				bam = nodup_bam_,
 				disable_tn5_shift = false,
-				subsample = subsample_reads,
 				paired_end = paired_end_,
 				mito_chr_name = mito_chr_name_,
+				split_fraglen = split_fraglen,
 
 				cpu = bam2ta_cpu,
 				mem_mb = bam2ta_mem_mb,
@@ -491,16 +490,8 @@ workflow cut_n_run {
 			}
 		}
 		File? ta_ = if has_output_of_bam2ta then tas[i] else bam2ta.ta
-
-		Boolean has_input_of_split_ta_by_read_len = defined(ta_)
-		if ( has_input_of_split_ta_by_read_len ) {
-			call split_ta_by_read_len { input :
-				ta = ta_,
-				split_read_len = split_read_len,
-			}
-		}
-		File? ta_high_ = split_ta_by_read_len.ta_high
-		File? ta_low_ = split_ta_by_read_len.ta_low
+		File? ta_high_ = bam2ta.ta_high
+		File? ta_low_ = bam2ta.ta_low
 
 		Boolean has_input_of_xcor = has_output_of_align || defined(align.bam)
 		if ( has_input_of_xcor && enable_xcor ) {
@@ -524,7 +515,6 @@ workflow cut_n_run {
 			call bam2ta as bam2ta_no_dedup { input :
 				bam = filter_no_dedup.nodup_bam,  # output name is nodup but it's not deduped
 				disable_tn5_shift = if pipeline_type=='atac' then false else true,
-				subsample = 0,
 				paired_end = paired_end_,
 				mito_chr_name = mito_chr_name_,
 
@@ -554,6 +544,8 @@ workflow cut_n_run {
 				paired_end = paired_end_,
 				mem_mb = spr_mem_mb,
 			}
+		}
+		if ( has_input_of_spr && !align_only && !true_rep_only && split_fraglen>0 ) {
 			call spr as spr_high { input :
 				ta = ta_high_,
 				paired_end = paired_end_,
@@ -680,7 +672,6 @@ workflow cut_n_run {
 		if ( has_input_of_bam2ta_ctl && !has_output_of_bam2ta_ctl ) {
 			call bam2ta as bam2ta_ctl { input :
 				bam = ctl_nodup_bam_,
-				subsample = subsample_reads,
 				paired_end = ctl_paired_end_,
 				mito_chr_name = mito_chr_name_,
 				disable_tn5_shift = false,
@@ -701,6 +692,9 @@ workflow cut_n_run {
 		call pool_ta { input :
 			tas = ta_,
 		}
+	}
+
+	if ( has_all_inputs_of_pool_ta && num_rep>1 && split_fraglen>0 ) {
 		call pool_ta as pool_ta_high { input :
 			tas = ta_high_,
 		}
@@ -716,6 +710,8 @@ workflow cut_n_run {
 		call pool_ta as pool_ta_pr1 { input :
 			tas = spr.ta_pr1,
 		}
+	}
+	if ( has_all_inputs_of_pool_ta_pr1 && num_rep>1 && !align_only && !true_rep_only && split_fraglen>0 ) {
 		call pool_ta as pool_ta_pr1_high { input :
 			tas = spr_high.ta_pr1,
 		}
@@ -731,6 +727,8 @@ workflow cut_n_run {
 		call pool_ta as pool_ta_pr2 { input :
 			tas = spr.ta_pr2,
 		}
+	}
+	if ( has_all_inputs_of_pool_ta_pr1 && num_rep>1 && !align_only && !true_rep_only && split_fraglen>0 ) {
 		call pool_ta as pool_ta_pr2_high { input :
 			tas = spr_high.ta_pr2,
 		}
@@ -821,6 +819,8 @@ workflow cut_n_run {
 				disks = call_peak_disks,
 				time_hr = call_peak_time_hr,
 			}
+		}
+		if ( has_input_of_call_peak && !align_only && split_fraglen>0 ) {
 			call call_peak as call_peak_high { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
@@ -898,6 +898,8 @@ workflow cut_n_run {
 				disks = call_peak_disks,
 				time_hr = call_peak_time_hr,
 			}
+		}
+		if ( has_input_of_call_peak_pr1 && !true_rep_only && split_fraglen>0 ) {
 			call call_peak as call_peak_pr1_high { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
@@ -960,6 +962,8 @@ workflow cut_n_run {
 				disks = call_peak_disks,
 				time_hr = call_peak_time_hr,
 			}
+		}
+		if ( has_input_of_call_peak_pr2 && !true_rep_only && split_fraglen>0 ) {
 			call call_peak as call_peak_pr2_high { input :
 				peak_caller = peak_caller_,
 				peak_type = peak_type_,
@@ -1024,6 +1028,8 @@ workflow cut_n_run {
 			disks = call_peak_disks,
 			time_hr = call_peak_time_hr,
 		}
+	}
+	if ( has_input_of_call_peak_pooled && !align_only && num_rep>1 && split_fraglen>0 ) {
 		call call_peak as call_peak_pooled_high { input :
 			peak_caller = peak_caller_,
 			peak_type = peak_type_,
@@ -1101,6 +1107,8 @@ workflow cut_n_run {
 			disks = call_peak_disks,
 			time_hr = call_peak_time_hr,
 		}
+	}
+	if ( has_input_of_call_peak_ppr1 && !align_only && !true_rep_only && num_rep>1 && split_fraglen>0 ) {
 		call call_peak as call_peak_ppr1_high { input :
 			peak_caller = peak_caller_,
 			peak_type = peak_type_,
@@ -1163,6 +1171,8 @@ workflow cut_n_run {
 			disks = call_peak_disks,
 			time_hr = call_peak_time_hr,
 		}
+	}
+	if ( has_input_of_call_peak_ppr2 && !align_only && !true_rep_only && num_rep>1 && split_fraglen>0 ) {
 		call call_peak as call_peak_ppr2_high { input :
 			peak_caller = peak_caller_,
 			peak_type = peak_type_,
@@ -1229,6 +1239,10 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = pool_ta.ta_pooled,
 			}
+		}
+	}
+	if ( !align_only && split_fraglen>0 ) {
+		scatter( pair in pairs ) {
 			call overlap as overlap_high { input :
 				prefix = 'rep'+(pair.left+1)+'_vs_rep'+(pair.right+1),
 				peak1 = peak_high_[pair.left],
@@ -1272,6 +1286,10 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = pool_ta.ta_pooled,
 			}
+		}
+	}
+	if ( enable_idr && !align_only && split_fraglen>0 ) {
+		scatter( pair in pairs ) {	
 			call idr as idr_high { input :
 				prefix = 'rep'+(pair.left+1)+'_vs_rep'+(pair.right+1),
 				peak1 = peak_high_[pair.left],
@@ -1315,6 +1333,10 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = ta_[i],
 			}
+		}
+	}
+	if ( !align_only && !true_rep_only && split_fraglen>0 ) {
+		scatter( i in range(num_rep) ) {
 			call overlap as overlap_pr_high { input :
 				prefix = 'rep'+(i+1)+'-pr1_vs_rep'+(i+1)+'-pr2',
 				peak1 = peak_pr1_high_[i],
@@ -1356,6 +1378,10 @@ workflow cut_n_run {
 				regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 				ta = ta_[i],
 			}
+		}
+	}
+	if ( !align_only && !true_rep_only && enable_idr && split_fraglen>0 ) {
+		scatter( i in range(num_rep) ) {
 			call idr as idr_pr_high { input :
 				prefix = 'rep'+(i+1)+'-pr1_vs_rep'+(i+1)+'-pr2',
 				peak1 = peak_pr1_high_[i],
@@ -1398,6 +1424,8 @@ workflow cut_n_run {
 			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 			ta = pool_ta.ta_pooled,
 		}
+	}
+	if ( !align_only && !true_rep_only && num_rep>1 && split_fraglen>0 ) {
 		call overlap as overlap_ppr_high { input :
 			prefix = 'pooled-pr1_vs_pooled-pr2',
 			peak1 = peak_ppr1_high_,
@@ -1437,6 +1465,8 @@ workflow cut_n_run {
 			regex_bfilt_peak_chr_name = regex_bfilt_peak_chr_name_,
 			ta = pool_ta.ta_pooled,
 		}
+	}
+	if ( !align_only && !true_rep_only && num_rep>1 && split_fraglen>0 ) {
 		call idr as idr_ppr_high { input :
 			prefix = 'pooled-pr1_vs_pooled-pr2',
 			peak1 = peak_ppr1_high_,
@@ -1476,6 +1506,8 @@ workflow cut_n_run {
 			peak_type = peak_type_,
 			chrsz = chrsz_,
 		}
+	}
+	if ( !align_only && !true_rep_only && num_rep > 0 && split_fraglen>0 ) {
 		call reproducibility as reproducibility_overlap_high { input :
 			prefix = 'overlap',
 			peaks = overlap_high.bfilt_overlap_peak,
@@ -1504,6 +1536,8 @@ workflow cut_n_run {
 			peak_type = peak_type_,
 			chrsz = chrsz_,
 		}
+	}
+	if ( !align_only && !true_rep_only && num_rep > 0 && enable_idr && split_fraglen>0 ) {
 		call reproducibility as reproducibility_idr_high { input :
 			prefix = 'idr',
 			peaks = idr_high.bfilt_idr_peak,
@@ -1593,7 +1627,7 @@ workflow cut_n_run {
 		overlap_opt_num_peak_qc = reproducibility_overlap.num_peak_qc,
 	}
 
-	if ( !align_only ) {
+	if ( !align_only && split_fraglen>0 ) {
 		call qc_report as qc_report_high { input :
 			pipeline_ver = pipeline_ver,
 			title = title + ' (high)',
@@ -1889,24 +1923,26 @@ task bam2ta {
 	Boolean paired_end
 	Boolean disable_tn5_shift 	# no tn5 shifting (it's for dnase-seq)
 	String mito_chr_name 		# mito chromosome name
-	Int subsample 				# number of reads to subsample TAGALIGN
-								# this affects all downstream analysis
+	Int? split_fraglen
 	Int cpu
 	Int mem_mb
 	Int time_hr
 	String disks
 
+	File? null_f
 	command {
-		python3 $(which encode_task_bam2ta.py) \
+		python3 $(which encode_task_bam2ta_cut_n_run.py) \
 			${bam} \
 			${if paired_end then '--paired-end' else ''} \
 			${if disable_tn5_shift then '--disable-tn5-shift' else ''} \
 			${'--mito-chr-name ' + mito_chr_name} \
-			${'--subsample ' + subsample} \
+			${'--split-fraglen ' + split_fraglen} \
 			${'--nth ' + cpu}
 	}
 	output {
-		File ta = glob('*.tagAlign.gz')[0]
+		File ta = glob('*.org.*tagAlign.gz')[0]
+		File? ta_high = if defined(split_fraglen) then glob('*.high.*tagAlign.gz')[0] else null_f
+		File? ta_low = if defined(split_fraglen) then glob('*.low.*tagAlign.gz')[0] else null_f
 	}
 	runtime {
 		cpu : cpu
@@ -1936,27 +1972,6 @@ task spr { # make two self pseudo replicates
 		memory : '${mem_mb} MB'
 		time : 1
 		disks : 'local-disk 50 HDD'
-	}
-}
-
-task split_ta_by_read_len {
-	File ta
-	Int split_read_len
-
-	command {
-		python3 $(which encode_task_split_ta_by_read_len.py) \
-			${ta} \
-			${'--split-read-len ' + split_read_len}
-	}
-	output {
-		File ta_high = glob('*.high.tagAlign.gz')[0]
-		File ta_low = glob('*.low.tagAlign.gz')[0]
-	}
-	runtime {
-		cpu : 1
-		memory : '4096 MB'
-		time : 1
-		disks : 'local-disk 100 HDD'
 	}
 }
 

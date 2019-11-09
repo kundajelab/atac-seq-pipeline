@@ -18,7 +18,7 @@
     "cut_n_run.ctl_fastqs_rep1_R2" : [
         "/mnt/data/pipeline_test_samples/cut-n-run-pipeline/h1_oct4/ctl/SRR8748847_2.fastq.gz"
     ],
-    "cut_n_run.split_read_len" : 20,
+    "cut_n_run.split_fraglen" : 200,
     "cut_n_run.paired_end" : true,
     "cut_n_run.title" : "h1_oct4",
     "cut_n_run.description" : "Cut-n-run test sample h1_oct4"

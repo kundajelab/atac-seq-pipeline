@@ -26,13 +26,12 @@
 
     "cut_n_run.read_len" : [],
 
-    "cut_n_run.split_read_len" : 0,
+    "cut_n_run.split_fraglen" : 0,
 
     "cut_n_run.mapq_thresh" : 30,
     "cut_n_run.dup_marker" : "picard",
     "cut_n_run.no_dup_removal" : false,
 
-    "cut_n_run.subsample_reads" : 0,
     "cut_n_run.xcor_subsample_reads" : 25000000,
 
     "cut_n_run.cap_num_peak" : 300000,
