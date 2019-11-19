@@ -1941,8 +1941,8 @@ task bam2ta {
 	}
 	output {
 		File ta = glob('*.org.*tagAlign.gz')[0]
-		File? ta_high = if defined(split_fraglen) then glob('*.high.*tagAlign.gz')[0] else null_f
-		File? ta_low = if defined(split_fraglen) then glob('*.low.*tagAlign.gz')[0] else null_f
+		File? ta_high = if defined(split_fraglen) && split_fraglen>0 then glob('*.high.*tagAlign.gz')[0] else null_f
+		File? ta_low = if defined(split_fraglen) && split_fraglen>0 then glob('*.low.*tagAlign.gz')[0] else null_f
 	}
 	runtime {
 		cpu : cpu
